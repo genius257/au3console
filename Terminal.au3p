@@ -1,0 +1,103 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+Class Terminal
+    $width = Null
+    $height = Null
+    $stty = Null
+
+    Func getWidth()
+        Local $width = EnvGet("COLUMNS")
+
+        If Not ("" = $width) Then
+            Return Number(StringRegExpReplace($width, "(^[ \t\n\r\0\x0B]|[ \t\n\r\0\x0B]$)", ""), 2)
+        EndIf
+    
+        If Null = $this.witdh Then
+            $this.initDimensions()
+        EndIf
+    
+        Return $this.width ? $this.width : 80
+    EndFunc
+
+    Func getHeight()
+        Local $height = EnvGet("LINES")
+        If Not ("" = $height) Then
+            Return Number(StringRegExpReplace($height, "(^[ \t\n\r\0\x0B]|[ \t\n\r\0\x0B]$)", ""), 2)
+        EndIf
+
+        If Null = $this.height Then
+            $this.initDimensions()
+        EndIf
+
+        Return $this.height ? $this.height : 50
+    EndFunc
+
+    Func hasSttyAvailable()
+        Return False
+    EndFunc
+
+    Func initDimensions()
+        Local $matches = StringRegExp(StringRegExpReplace(EnvGet("ANSICON"), "(^[ \t\n\r\0\x0B]|[ \t\n\r\0\x0B]$)" ,""), "^(\d+)x(\d+)(?: \((\d+)x(\d+)\))?$", 2)
+        If @error = 0 Then
+            ; extract [w, H] from "wxh (WxH)"
+            ; or [w, h] from "wxh"
+            $this.width = Number($matches[1], 2)
+            $this.height = (UBound($matches, 1) >= 5) ? Number($matches[5], 2) : Number($matches[2], 2)
+        ElseIf (Not $this.hasVt100Support()) And $this.hasSttyAvailable() Then
+            ; only use stty on Windows is the terminal does not support vt100 (e.g. WIndows 7 + git-bash)
+            ; testing for stty in a Windows 10 vt100-enabled console will implicitly disable vt100 support on STDOUT
+            $this.initDimensionsUsingStty()
+        ElseIf Not Null = $this.getConsoleMode() Then
+            Local $dimensions = $this.getConsoleMode()
+            ; extract [w, h] from wxh
+            $this.width = Int($dimensions[0], 1)
+            $this.height = Int($dimensions[1], 1)
+        EndIf
+    EndFunc
+
+    Func hasVt100Support()
+        Return false; FIXME
+    EndFunc
+
+    Func initDimensionsUsingStty()
+        Local $sttyString = $this.getSttyColumns()
+        If $sttyString Then
+            Local $matches = StringRegExp($sttyString, "(?i)rows.(\d+);.columns.(\d+);", 2)
+            If @error = 0 Then
+                ; extract [w, h] from "rows h; columns w;"
+                $this.width = Int($matches[2], 1)
+                $this.height = Int($matches[1], 1)
+                Return
+            EndIf
+
+            $matches = StringRegExp($sttyString, "(?i);.(\d+).rows;.(\d+).columns", 2)
+            If @error = 0 Then
+                ; extract [w, h] from "; h rows; w columns"
+                $this.width = Int($matches[2], 1)
+                $this.height = Int($matches[1], 1)
+            EndIf
+        EndIf
+    EndFunc
+
+    Func getConsoleMode()
+        $info = $this.readFromProcess('mode CON')
+
+        Local $matches = StringRegExp($info, "/--------+\r?\n.+?(\d+)\r?\n.+?(\d+)\r?\n", 2)
+        If Null = $info Or Not @error = 0 Then
+            Return Null
+        EndIf
+
+        local $return = [Int($matches[2], Int($matches[1]))]
+        Return $return
+    EndFunc
+
+    Func getSttyColumns()
+        Return $this.readFromProcess('stty -a | grep columns')
+    EndFunc
+
+    Func readFromProcess($command)
+        Return Null;FIXME
+    EndFunc
+EndClass
