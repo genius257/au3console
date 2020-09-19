@@ -1,0 +1,1043 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include <Array.au3>
+
+#include "Terminal.au3"
+#include "Command/Command.au3"
+
+#cs
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Command\HelpCommand;
+use Symfony\Component\Console\Command\ListCommand;
+use Symfony\Component\Console\Command\SignalableCommandInterface;
+use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
+use Symfony\Component\Console\Event\ConsoleCommandEvent;
+use Symfony\Component\Console\Event\ConsoleErrorEvent;
+use Symfony\Component\Console\Event\ConsoleSignalEvent;
+use Symfony\Component\Console\Event\ConsoleTerminateEvent;
+use Symfony\Component\Console\Exception\CommandNotFoundException;
+use Symfony\Component\Console\Exception\ExceptionInterface;
+use Symfony\Component\Console\Exception\LogicException;
+use Symfony\Component\Console\Exception\NamespaceNotFoundException;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Helper\DebugFormatterHelper;
+use Symfony\Component\Console\Helper\FormatterHelper;
+use Symfony\Component\Console\Helper\Helper;
+use Symfony\Component\Console\Helper\HelperSet;
+use Symfony\Component\Console\Helper\ProcessHelper;
+use Symfony\Component\Console\Helper\QuestionHelper;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputAwareInterface;
+use Symfony\Component\Console\Input\InputDefinition;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\SignalRegistry\SignalRegistry;
+use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\ErrorHandler\ErrorHandler;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Symfony\Contracts\Service\ResetInterface;
+#ce
+
+Class Application
+    $commands = __Application_Array()
+    $wantHelps = False
+    $runningCommand
+    $name
+    $version
+    $commandLoader
+    $catchExceptions = True
+    $autoExit = True
+    $definition
+    $helperSet
+    $dispatcher
+    $terminal
+    $defaultCommand
+    $singleCommand = false
+    $initialized
+    $signalRegistry
+    $signalsToDispatchEvent = __Application_Array()
+
+    Func __construct($name = 'UNKNOWN', $version = 'UNKNOWN')
+        $this.name = $name;
+        $this.version = $version;
+        $this.terminal = Terminal()
+        $this.defaultCommand = 'list'
+        ;$this.signalRegistry = SignalRegistry()
+    EndFunc
+
+    Func setDispatcher($dispatcher)
+        $this.dispatcher = $dispatcher
+    EndFunc
+
+    Func setCommandLoader($commandLoader)
+        $this.commandLoader = $commandLoader
+    EndFunc
+
+    Func getSignalRegistry()
+        return $this.signalRegistry
+    EndFunc
+
+    Func setSignalsToDispatchEvent(...$signalsToDispatchEvent);FIXME
+        $this.signalsToDispatchEvent = $signalsToDispatchEvent
+    EndFunc
+
+    Func run($input = Null, $output = Null)
+        EnvSet('LINES='&$this.terminal.getHeight())
+        EnvSet('COLUMNS='&$this.terminal.getWidth())
+
+        If Null = $input Then $input = ArgvInput()
+
+        If Null = $output Then $output = ConsoleOutput()
+
+        ;NOTE: code for exception handler render skipped: https://github.com/symfony/console/blob/master/Application.php#L140-L154
+
+        $this.configureIO($input, $output)
+
+        Local $exitCode = $this.doRun($input, $output)
+        Local $error = @error
+        Local $extended = @extended
+        If $error <> 0 Then
+            If Not $this.catchExceptions Then Return SetError($error, $extended, $exitCode)
+
+            Local $e = [$error, $extended, $exitCode]
+            $this.renderThrowable($e)
+        EndIf
+
+        If $this.autoExit Then
+            If $exitCode > 255 Then
+                $exitCode = 255
+            EndIf
+
+            Exit $exitCode
+        EndIf
+
+        Return $exitCode
+    EndFunc
+
+    Func doRun($input, $output)
+        Local $tmp = ['--version', '-V']
+        If True = $input.hasParameterOption($tmp, True) Then
+            $output.writeln($this.getLongVersion())
+
+            Return 0
+        EndIf
+
+        $input.bind($this.getDefinition())
+
+        Local $name = $this.getCommandName($input)
+
+        Local $tmp = ['--help', '-h']
+        If (True === $input.hasParameterOption($tmp, True)) Then
+            If Not $name Then;WARNING: this may work different than in php
+                $name = 'help'
+                Local $tmp = [['command_name', $this.defaultCommand]]
+                $input = ArrayInput($tmp)
+            Else
+                $this.wantHelps = True
+            EndIf
+        EndIf
+
+        If Not $name Then;WARNING: this may work different than in php
+            $name = $this.defaultCommand
+            $definition = $this.getDefinition()
+            Local $arguments = $definition.getArguments()
+            Redim $arguments[UBound($arguments, 1) + 1][2]
+            $arguments[UBound($arguments, 1) - 1][0] = 'command'
+            $arguments[UBound($arguments, 1) - 1][1] = InputArgument('command', $__g_InputArgument_OPTIONAL, $definition.getArgument('command').getDescription(), $name)
+        EndIf
+
+        $this.runningCommand = Null
+        ; the command name MUST be the first element of the input
+        $command = $this.find($name);
+        ;FIXME: missing try catch code https://github.com/symfony/console/blob/master/Application.php#L248-L280
+
+        If ($this.dispatcher) Then;WARNING: this may work different than in php
+            For $signal In $this.signalsToDispatchEvent
+                Local $event = ConsoleSignalEvent($command, $input, $output, $signal)
+                ;FIXME: https://github.com/symfony/console/blob/master/Application.php#L286-L295
+            Next
+        EndIf
+
+        $this.runningCommand = $command
+        $exitCode = $this.doRunCommand($command, $input, $output)
+        $this.runningCommand = Null
+
+        Return $exitCode
+    EndFunc
+
+    Func reset()
+        ;
+    EndFunc
+
+    Func setHelperSet($helperSet)
+        $this.helperSet = $helperSet
+    EndFunc
+
+    Func getHelperSet()
+        If (Not $this.helperSet) Then;WARNING: this may work different than in php
+            $this.helperSet = $this.getDefaultHelperSet();
+        EndIf
+
+        Return $this.helperSet
+    EndFunc
+
+    Func setDefinition($definition)
+        $this.definition = $definition
+    EndFunc
+
+    Func getDefinition()
+        If (Not $this.definition) Then
+            $this.definition = $this.getDefaultInputDefinition()
+        EndIf
+
+        If ($this.singleCommand) Then
+            Local $inputDefinition = $this.definition
+            $inputDefinition.setArguments()
+
+            Return $inputDefinition;
+        EndIf
+
+        Return $this.definition;
+    EndFunc
+
+    Func getHelp()
+        Return $this.getLongVersion()
+    EndFunc
+
+    Func areExceptionsCaught()
+        Return $this.catchExceptions
+    EndFunc
+
+    Func setCatchExceptions($boolean)
+        $this.catchExceptions = $boolean
+    EndFunc
+
+    Func isAutoExitEnabled()
+        Return $this.autoExit
+    EndFunc
+
+    Func setAutoExit($boolean)
+        $this.autoExit = $boolean
+    EndFunc
+
+    Func getName()
+        Return $this.name
+    EndFunc
+
+    Func setName($name)
+        $this.name = $name
+    EndFunc
+
+    Func getVersion()
+        Return $this.version
+    EndFunc
+
+    Func setVersion($version)
+        $this.version = $version
+    EndFunc
+
+    Func getLongVersion()
+        If Not ('UNKNOWN' == $this.getName()) Then
+            If Not ('UNKNOWN' == $this.getVersion()) Then
+                Return StringFormat('%s <info>%s</info>', $this.getName(), $this.getVersion())
+            EndIf
+
+            Return $this.getName()
+        EndIf
+
+        Return 'Console Tool'
+    EndFunc
+
+    Func register($name)
+        Return $this.add(Command($name))
+    EndFunc
+
+    Func addCommands($commands)
+        For $command In $commands
+            $this.add($command)
+        Next
+    EndFunc
+
+    Func add($command)
+        $this.init()
+
+        $command.setApplication($this);
+
+        If (Not $command.isEnabled()) Then
+            $command.setApplication(Null)
+
+            Return Null
+        EndIf
+
+        ; Will "throw" if the command is not correctly initialized.
+        $command.getDefinition()
+
+        If (Not $comman.getName()) Then
+            throw new LogicException(sprintf('The command defined in "%s" cannot have an empty name.', get_debug_type($command)));
+        EndIf
+
+        $this.commands[$command.getName()] = $command;FIXME: assoc array is emulated
+
+        For $alias In $command.getAliases()
+            $this.commands[$alias] = $command;FIXME: assoc array is emulated
+        Next
+
+        return $command
+    EndFunc
+
+    Func get($name)
+        Local $command
+        $this.init()
+
+        If Not $this.has($name) Then Return SetError(1, 1, 1); throw new CommandNotFoundException(sprintf('The command "%s" does not exist.', $name));
+
+        ; When the command has a different name than the one used at the command loader level
+        Local $commands = $this.commands
+        Local $tmp = False
+        Local $i
+        For $i = 0 To UBound($command, 1)-1 Step +1
+            If $commands[$i][0] = $name Then
+                $tmp = True
+                $command = $commands[$i][1]
+                ExitLoop
+            EndIf
+        Next
+        If $tmp = False Then Return SetError(1, 1, 1);throw new CommandNotFoundException(sprintf('The "%s" command cannot be found because it is registered under multiple names. Make sure you don\'t set a different name via constructor or "setName()".', $name));
+
+        If $this.wantHelps Then
+            $this.wantHelps = False
+
+            Local $helpCommand = $this.get('help')
+            $helpCommand.setCommand($command);
+
+            return $helpCommand;
+        EndIf
+
+        Return $command
+    EndFunc
+
+    Func has($name)
+        $this.init()
+
+        Local $commands = $this.commands
+        Local $found = False
+        Local $i
+        For $i = 0 To UBound($commands, 1) - 1 Step +1
+            If $commands[$i][0] = $name Then
+                $found = True
+                ExitLoop
+            EndIf
+        Next
+
+        Return $found Or ($this.commandLoader And $this.commandLoader.has($name) And $this.add($this.commandLoader.get($name)))
+    EndFunc
+
+    Func getNamespaces()
+        Local $namespaces[0]
+
+        Local $command
+        For $command In $this.all()
+            If $command.isHidden() Then ContinueLoop
+            $namespaces = __Application_ArrayMerge2($namespaces, $this.extractAllNamespaces($command.getName()))
+
+            For $alias In $command.getAliases()
+                $namespaces = __Application_ArrayMerge2($namespaces, $this.extractAllNamespaces($alias))
+            Next
+        Next
+
+        Return __Application_ArrayUnique(__Application_ArrayFilter($namespaces))
+    EndFunc
+
+    Func findNamespace($namespace)
+        Local $allNamespaces = $this.getNamespaces();
+        ;Local $expr = preg_replace_callback('{([^:]+|)}', function ($matches) { return preg_quote($matches[1]).'[^:]*' }, $namespace);
+        Local $expr = __Application_StringRegExpReplaceCallback($namespace, '{([^:]+|)}', __Application_Anonymous1600460614);
+        Local $namespaces = __Application_preg_grep('{^'&$expr&'}', $allNamespaces);
+
+        If (UBound($namespaces, 1) = 0) Then
+            $message = StringFormat('There are no commands defined in the "%s" namespace.', $namespace);
+
+            If ($alternatives = $this.findAlternatives($namespace, $allNamespaces)) Then
+                If (1 = UBound($alternatives, 1)) Then
+                    $message &= StringFormat("\n\nDid you mean this?\n    ");
+                Else
+                    $message &= StringFormat("\n\nDid you mean one of these?\n    ");
+                EndIf
+
+                $message &= _ArrayToString($alternatives, StringFormat("\n    "))
+            EndIf
+
+            Return SetError(1, 1, NamespaceNotFoundException($message, $alternatives))
+        EndIf
+
+        $exact = Not _ArraySearch($namespaces, $namespace, 0, 0, 1) = -1
+        if (UBound($namespaces, 1) > 1 And Not $exact) Then
+            Return SetError(1, 1, NamespaceNotFoundException(StringFormat('The namespace "%s" is ambiguous.\nDid you mean one of these?\n%s.', $namespace, $this.getAbbreviationSuggestions(array_values($namespaces))), array_values($namespaces)))
+        EndIf
+
+        return $exact ? $namespace : reset($namespaces);
+    EndFunc
+
+    Func find($name)
+        $this.init()
+        #cs
+        Local $aliases[0][2]
+
+        foreach ($this.commands as $command) {
+            foreach ($command.getAliases() as $alias) {
+                if (!$this.has($alias)) {
+                    $this.commands[$alias] = $command;
+                }
+            }
+        }
+        #ce
+
+        If ($this.has($name)) Then
+            Return $this.get($name)
+        EndIf
+
+        $allCommands = $this.commandLoader ? __Application_ArrayMerge2($this.commandLoader.getNames(), array_keys($this.commands)) : array_keys($this.commands);
+        ;$expr = preg_replace_callback('{([^:]+|)}', function ($matches) { return preg_quote($matches[1]).'[^:]*'; }, $name);
+        $expr = __Application_StringRegExpReplaceCallback($name, '{([^:]+|)}', __Application_Anonymous1600462464)
+        $commands = __Application_preg_grep('{^'&$expr&'}', $allCommands);
+
+        if (UBound($commands, 1) = 0) then
+            $commands = __Application_preg_grep('{^'&$expr&'}i', $allCommands);
+        endif
+
+        ; if no commands matched or we just matched namespaces
+        if (UBound($commands, 1) = 0 Or UBound(__Application_preg_grep('{^'&$expr&'$}i', $commands), 1) < 1) Then
+            Local $pos = StringInStr($name, ':')
+            if (Not 0 = $pos) Then
+                ; check if a namespace exists and contains commands
+                $this.findNamespace(StringMid($name, 1, $pos));
+            EndIf
+
+            $message = sprintf('Command "%s" is not defined.', $name);
+
+            #cs
+            if ($alternatives = $this.findAlternatives($name, $allCommands)) {
+                ; remove hidden commands
+                $alternatives = array_filter($alternatives, function ($name) {
+                    return !$this.get($name).isHidden();
+                });
+
+                if (1 == \count($alternatives)) Then
+                    $message &= StringFormat("\n\nDid you mean this?\n    ")
+                else
+                    $message &= StringFormat("\n\nDid you mean one of these?\n    ")
+                ElseIf
+                $message &= _ArrayToString($alternatives, StringFormat("\n    "))
+            EndIf
+            #ce
+
+            Return SetError(1, 1, CommandNotFoundException($message, array_values($alternatives)))
+        EndIf
+
+        #cs
+        ; filter out aliases for commands which are already on the list
+        if (UBound($commands, 1) > 1) {
+            $commandList = $this.commandLoader ? __Application_ArrayMerge2(array_flip($this.commandLoader.getNames()), $this.commands) : $this.commands;
+            $commands = _ArrayUnique(array_filter($commands, function ($nameOrAlias) use (&$commandList, $commands, &$aliases) {
+                if (!$commandList[$nameOrAlias] instanceof Command) {
+                    $commandList[$nameOrAlias] = $this.commandLoader.get($nameOrAlias);
+                }
+
+                $commandName = $commandList[$nameOrAlias].getName();
+
+                $aliases[$nameOrAlias] = $commandName;
+
+                return $commandName === $nameOrAlias || !\in_array($commandName, $commands);
+            }));
+        }
+        #ce
+
+        #cs
+        if (UBound($commands, 1) > 1) {
+            $usableWidth = $this.terminal.getWidth() - 10;
+            $abbrevs = array_values($commands);
+            $maxLen = 0;
+            foreach ($abbrevs as $abbrev) {
+                $maxLen = max(Helper::strlen($abbrev), $maxLen);
+            }
+            $abbrevs = array_map(function ($cmd) use ($commandList, $usableWidth, $maxLen, &$commands) {
+                if ($commandList[$cmd].isHidden()) {
+                    unset($commands[array_search($cmd, $commands)]);
+
+                    return false;
+                }
+
+                $abbrev = str_pad($cmd, $maxLen, ' ').' '.$commandList[$cmd].getDescription();
+
+                return Helper::strlen($abbrev) > $usableWidth ? Helper::substr($abbrev, 0, $usableWidth - 3).'...' : $abbrev;
+            }, array_values($commands));
+
+            if (\count($commands) > 1) {
+                $suggestions = $this.getAbbreviationSuggestions(array_filter($abbrevs));
+
+                throw new CommandNotFoundException(sprintf("Command \"%s\" is ambiguous.\nDid you mean one of these?\n%s.", $name, $suggestions), array_values($commands));
+            }
+        }
+        #ce
+
+        $command = $this.get($commands[0]);
+
+        if ($command.isHidden()) Then
+            Return SetError(1, 1, CommandNotFoundException(StringFormat('The command "%s" does not exist.', $name)))
+        EndIf
+
+        return $command
+    EndFunc
+
+    Func all($namespace = null)
+        $this.init();
+
+        if (Null = $namespace) Then
+            if (Not $this.commandLoader) Then
+                return $this.commands
+            EndIf
+
+            #cs
+            Local $commands = $this.commands
+            foreach ($this.commandLoader.getNames() as $name) {
+                if (!isset($commands[$name]) && $this.has($name)) Then
+                    $commands[$name] = $this.get($name);
+                EndIf
+            }
+            #ce
+
+            return $commands;
+        EndIf
+
+        #cs
+        Local $commands[0]
+        foreach ($this.commands as $name => $command) {
+            If ($namespace === $this.extractNamespace($name, substr_count($namespace, ':') + 1)) Then
+                $commands[$name] = $command;
+            EndIf
+        }
+        #ce
+
+        #cs
+        if ($this.commandLoader) Then
+            foreach ($this.commandLoader.getNames() as $name) {
+                if (!isset($commands[$name]) && $namespace === $this.extractNamespace($name, substr_count($namespace, ':') + 1) && $this.has($name)) Then
+                    $commands[$name] = $this.get($name);
+                EndIf
+            }
+        EndIf
+        #ce
+
+        return $commands
+    EndFunc
+
+    Func getAbbreviations($names)
+        Local $abbrevs[0]
+        ConsoleWrite("FIXME: getAbbreviations"&@CRLF)
+        #cs
+        foreach ($names as $name) {
+            Local $len = StringLen($name)
+            While ($len > 0)
+                Local $abbrev = StringMid($name, 1, $len)
+                $abbrevs[$abbrev][] = $name
+                $len -= 1
+            WEnd
+        }
+        #ce
+
+        return $abbrevs
+    EndFunc
+
+    Func renderThrowable($e, $output)
+        $output.writeln('', OutputInterface::VERBOSITY_QUIET);
+
+        $this.doRenderThrowable($e, $output);
+
+        If (Not Null = $this.runningCommand) Then
+            $output.writeln(StringFormat('<info>%s</info>', StringFormat($this.runningCommand.getSynopsis(), $this.getName())), OutputInterface::VERBOSITY_QUIET);
+            $output.writeln('', OutputInterface::VERBOSITY_QUIET);
+        EndIf
+    EndFunc
+
+    Func doRenderThrowable($e, $output)
+        MsgBox(0, "", "FIXME")
+        #cs
+        do {
+            $message = trim($e.getMessage());
+            if ('' === $message || OutputInterface::VERBOSITY_VERBOSE <= $output.getVerbosity()) {
+                $class = get_debug_type($e);
+                $title = sprintf('  [%s%s]  ', $class, 0 !== ($code = $e.getCode()) ? ' ('.$code.')' : '');
+                $len = Helper::strlen($title);
+            } else {
+                $len = 0;
+            }
+
+            if (false !== strpos($message, "@anonymous\0")) {
+                $message = preg_replace_callback('/[a-zA-Z_\x7f-\xff][\\\\a-zA-Z0-9_\x7f-\xff]*+@anonymous\x00.*?\.php(?:0x?|:[0-9]++\$)[0-9a-fA-F]++/', function ($m) {
+                    return class_exists($m[0], false) ? (get_parent_class($m[0]) ?: key(class_implements($m[0])) ?: 'class').'@anonymous' : $m[0];
+                }, $message);
+            }
+
+            $width = $this.terminal.getWidth() ? $this.terminal.getWidth() - 1 : \PHP_INT_MAX;
+            $lines = [];
+            foreach ('' !== $message ? preg_split('/\r?\n/', $message) : [] as $line) {
+                foreach ($this.splitStringByWidth($line, $width - 4) as $line) {
+                    ; pre-format lines to get the right string length
+                    $lineLength = Helper::strlen($line) + 4;
+                    $lines[] = [$line, $lineLength];
+
+                    $len = max($lineLength, $len);
+                }
+            }
+
+            $messages = [];
+            if (!$e instanceof ExceptionInterface || OutputInterface::VERBOSITY_VERBOSE <= $output.getVerbosity()) {
+                $messages[] = sprintf('<comment>%s</comment>', OutputFormatter::escape(sprintf('In %s line %s:', basename($e.getFile()) ?: 'n/a', $e.getLine() ?: 'n/a')));
+            }
+            $messages[] = $emptyLine = sprintf('<error>%s</error>', str_repeat(' ', $len));
+            if ('' === $message || OutputInterface::VERBOSITY_VERBOSE <= $output.getVerbosity()) {
+                $messages[] = sprintf('<error>%s%s</error>', $title, str_repeat(' ', max(0, $len - Helper::strlen($title))));
+            }
+            foreach ($lines as $line) {
+                $messages[] = sprintf('<error>  %s  %s</error>', OutputFormatter::escape($line[0]), str_repeat(' ', $len - $line[1]));
+            }
+            $messages[] = $emptyLine;
+            $messages[] = '';
+
+            $output.writeln($messages, OutputInterface::VERBOSITY_QUIET);
+
+            if (OutputInterface::VERBOSITY_VERBOSE <= $output.getVerbosity()) {
+                $output.writeln('<comment>Exception trace:</comment>', OutputInterface::VERBOSITY_QUIET);
+
+                ; exception related properties
+                $trace = $e.getTrace();
+
+                array_unshift($trace, [
+                    'function' => '',
+                    'file' => $e.getFile() ?: 'n/a',
+                    'line' => $e.getLine() ?: 'n/a',
+                    'args' => [],
+                ]);
+
+                for ($i = 0, $count = \count($trace); $i < $count; ++$i) {
+                    $class = isset($trace[$i]['class']) ? $trace[$i]['class'] : '';
+                    $type = isset($trace[$i]['type']) ? $trace[$i]['type'] : '';
+                    $function = isset($trace[$i]['function']) ? $trace[$i]['function'] : '';
+                    $file = isset($trace[$i]['file']) ? $trace[$i]['file'] : 'n/a';
+                    $line = isset($trace[$i]['line']) ? $trace[$i]['line'] : 'n/a';
+
+                    $output.writeln(sprintf(' %s%s at <info>%s:%s</info>', $class, $function ? $type.$function.'()' : '', $file, $line), OutputInterface::VERBOSITY_QUIET);
+                }
+
+                $output.writeln('', OutputInterface::VERBOSITY_QUIET);
+            }
+        } while ($e = $e.getPrevious());
+        #ce
+    EndFunc
+
+    Func configureIO($input, $output)
+        If (true === $input.hasParameterOption(['--ansi'], true)) Then
+            $output.setDecorated(true);
+        ElseIf (true === $input.hasParameterOption(['--no-ansi'], true)) Then
+            $output.setDecorated(false);
+        EndIf
+
+        if (true === $input.hasParameterOption(['--no-interaction', '-n'], true)) Then
+            $input.setInteractive(false);
+        EndIf
+
+        Local $shellVerbosity = EnvGet('SHELL_VERBOSITY')
+        Switch ($shellVerbosity)
+            Case -1
+                $output.setVerbosity(OutputInterface::VERBOSITY_QUIET)
+            Case 1
+                $output.setVerbosity(OutputInterface::VERBOSITY_VERBOSE)
+            Case 2
+                $output.setVerbosity(OutputInterface::VERBOSITY_VERY_VERBOSE)
+            Case 3
+                $output.setVerbosity(OutputInterface::VERBOSITY_DEBUG)
+            Case Else
+                $shellVerbosity = 0
+        EndSwitch
+
+        if (true === $input.hasParameterOption(['--quiet', '-q'], true)) Then
+            $output.setVerbosity(OutputInterface::VERBOSITY_QUIET);
+            $shellVerbosity = -1;
+        Else
+            If ($input.hasParameterOption('-vvv', true) Or $input.hasParameterOption('--verbose=3', true) Or 3 = $input.getParameterOption('--verbose', false, true)) Then
+                $output.setVerbosity(OutputInterface::VERBOSITY_DEBUG);
+                $shellVerbosity = 3;
+            ElseIf ($input.hasParameterOption('-vv', true) Or $input.hasParameterOption('--verbose=2', true) Or 2 = $input.getParameterOption('--verbose', false, true)) Then
+                $output.setVerbosity(OutputInterface::VERBOSITY_VERY_VERBOSE);
+                $shellVerbosity = 2;
+            ElseIf ($input.hasParameterOption('-v', true) Or $input.hasParameterOption('--verbose=1', true) Or $input.hasParameterOption('--verbose', true) Or $input.getParameterOption('--verbose', false, true)) Then
+                $output.setVerbosity(OutputInterface::VERBOSITY_VERBOSE);
+                $shellVerbosity = 1;
+            EndIf
+        EndIf
+
+        if (-1 = $shellVerbosity) Then
+            $input.setInteractive(False)
+        EndIf
+
+        EnvSet('SHELL_VERBOSITY', $shellVerbosity);
+        ;$_ENV['SHELL_VERBOSITY'] = $shellVerbosity;
+        ;$_SERVER['SHELL_VERBOSITY'] = $shellVerbosity;
+    EndFunc
+
+    Func doRunCommand($command, $input, $output)
+        #cs
+        foreach ($command.getHelperSet() as $helper) {
+            if ($helper instanceof InputAwareInterface) {
+                $helper.setInput($input);
+            }
+        }
+        #ce
+
+        if ($command instanceof SignalableCommandInterface) Then
+            For $signal In $command.getSubscribedSignals()
+                $tmp = [$command, 'handleSignal']
+                $this.signalRegistry.register($signal, $tmp);
+            Next
+        EndIf
+
+        if (null === $this.dispatcher) Then
+            return $command.run($input, $output);
+        EndIf
+
+        ; bind before the console.command event, so the listeners have access to input options/arguments
+        ;try {
+            $command.mergeApplicationDefinition();
+            $input.bind($command.getDefinition());
+        ;} catch (ExceptionInterface $e) {
+            ; ignore invalid options/arguments for now, to allow the event listeners to customize the InputDefinition
+        ;}
+
+        $event = new ConsoleCommandEvent($command, $input, $output);
+        $e = null;
+
+        ;try {
+            $this.dispatcher.dispatch($event, ConsoleEvents::COMMAND);
+
+            If ($event.commandShouldRun()) Then
+                $exitCode = $command.run($input, $output);
+            Else
+                $exitCode = ConsoleCommandEvent::RETURN_CODE_DISABLED;
+            EndIf
+        ;} catch (\Throwable $e) {
+        ;    $event = ConsoleErrorEvent($input, $output, $e, $command);
+        ;    $this.dispatcher.dispatch($event, ConsoleEvents::ERROR);
+        ;    $e = $event.getError()
+;
+        ;    $exitCode = $event.getExitCode()
+        ;    if (0 = $exitCode) Then
+        ;        $e = Null
+        ;    EndIf
+        ;}
+
+        $event = ConsoleTerminateEvent($command, $input, $output, $exitCode)
+        $this.dispatcher.dispatch($event, ConsoleEvents::TERMINATE);
+
+        If Not (Null = $e) Then
+            Return SetError(1, 1, $e)
+        EndIf
+
+        Return $event.getExitCode()
+    EndFunc
+
+    Func getCommandName($input)
+        return $this.singleCommand ? $this.defaultCommand : $input.getFirstArgument()
+    EndFunc
+
+    Func getDefaultInputDefinition()
+        Local $tmp = [ _
+            InputArgument('command', InputArgument::REQUIRED, 'The command to execute'), _
+            InputOption('--help', '-h', InputOption::VALUE_NONE, 'Display this help message'), _
+            InputOption('--quiet', '-q', InputOption::VALUE_NONE, 'Do not output any message'), _
+            InputOption('--verbose', '-v|vv|vvv', InputOption::VALUE_NONE, 'Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug'), _
+            InputOption('--version', '-V', InputOption::VALUE_NONE, 'Display this application version'), _
+            InputOption('--ansi', '', InputOption::VALUE_NONE, 'Force ANSI output'), _
+            InputOption('--no-ansi', '', InputOption::VALUE_NONE, 'Disable ANSI output'), _
+            InputOption('--no-interaction', '-n', InputOption::VALUE_NONE, 'Do not ask any interactive question'), _
+        ]
+        Return InputDefinition($tmp);
+    EndFunc
+
+    Func getDefaultCommands()
+        Local $tmp = [HelpCommand(), ListCommand()]
+        Return $tmp
+    EndFunc
+
+    Func getDefaultHelperSet()
+        Local $tmp = [ _
+            new FormatterHelper(), _
+            new DebugFormatterHelper(), _
+            new ProcessHelper(), _
+            new QuestionHelper(), _
+        ]
+        return HelperSet($tmp)
+    EndFunc
+
+    Func getAbbreviationSuggestions($abbrevs)
+        Return '    '&_ArrayToString($abbrevs, StringFormat("\n    "))
+    EndFunc
+
+    Func extractNamespace($name, $limit = Null)
+        Local $parts = StringSplit($name, ':')
+        Redim $parts[UBound($parts, 1) - 1]
+
+        If Not Null = $parts Then
+            Redim $parts[$limit]
+        EndIf
+
+        Return _ArrayToString($parts, ':')
+    EndFunc
+
+    Func findAlternatives($name, $collection)
+        MsgBox(0, "", "FIXME")
+        #cs
+        $threshold = 1e3;
+        $alternatives = [];
+
+        $collectionParts = [];
+        foreach ($collection as $item) {
+            $collectionParts[$item] = explode(':', $item);
+        }
+
+        foreach (explode(':', $name) as $i => $subname) {
+            foreach ($collectionParts as $collectionName => $parts) {
+                $exists = isset($alternatives[$collectionName]);
+                if (!isset($parts[$i]) && $exists) {
+                    $alternatives[$collectionName] += $threshold;
+                    continue;
+                } elseif (!isset($parts[$i])) {
+                    continue;
+                }
+
+                $lev = levenshtein($subname, $parts[$i]);
+                if ($lev <= \strlen($subname) / 3 || '' !== $subname && false !== strpos($parts[$i], $subname)) {
+                    $alternatives[$collectionName] = $exists ? $alternatives[$collectionName] + $lev : $lev;
+                } elseif ($exists) {
+                    $alternatives[$collectionName] += $threshold;
+                }
+            }
+        }
+
+        foreach ($collection as $item) {
+            $lev = levenshtein($name, $item);
+            if ($lev <= \strlen($name) / 3 || false !== strpos($item, $name)) {
+                $alternatives[$item] = isset($alternatives[$item]) ? $alternatives[$item] - $lev : $lev;
+            }
+        }
+
+        $alternatives = array_filter($alternatives, function ($lev) use ($threshold) { return $lev < 2 * $threshold; });
+        ksort($alternatives, \SORT_NATURAL | \SORT_FLAG_CASE);
+
+        return array_keys($alternatives);
+        #ce
+    EndFunc
+
+    Func setDefaultCommand($commandName, $isSingleCommand = False)
+        $this.defaultCommand = $commandName;
+
+        if ($isSingleCommand) then
+            ; Ensure the command exist
+            $this.find($commandName);
+
+            $this.singleCommand = true;
+        EndIf
+
+        return $this;
+    EndFunc
+
+    Func isSingleCommand()
+        Return $this.singleCommand
+    EndFunc
+
+    Func splitStringByWidth($string, $width)
+        MsgBox(0, "", "FIXME")
+        #cs
+        ; str_split is not suitable for multi-byte characters, we should use preg_split to get char array properly.
+        ; additionally, array_slice() is not enough as some character has doubled width.
+        ; we need a function to split string not by character count but by string width
+        if (false === $encoding = mb_detect_encoding($string, null, true)) {
+            return str_split($string, $width);
+        }
+
+        $utf8String = mb_convert_encoding($string, 'utf8', $encoding);
+        $lines = [];
+        $line = '';
+
+        $offset = 0;
+        while (preg_match('/.{1,10000}/u', $utf8String, $m, 0, $offset)) {
+            $offset += \strlen($m[0]);
+
+            foreach (preg_split('//u', $m[0]) as $char) {
+                ; test if $char could be appended to current line
+                if (mb_strwidth($line.$char, 'utf8') <= $width) {
+                    $line &= $char;
+                    continue;
+                }
+                ; if not, push current line to array and make new line
+                $lines[] = str_pad($line, $width);
+                $line = $char;
+            }
+        }
+
+        $lines[] = \count($lines) ? str_pad($line, $width) : $line;
+
+        mb_convert_variables($encoding, 'utf8', $lines);
+
+        Return $lines
+        #ce
+    EndFunc
+
+    Func extractAllNamespaces($name)
+        Local $parts = StringSplit($name, ':')
+        ; -1 is needed to skip the command short name when splitting
+        Redim $parts[UBound($parts, 1) - 1]
+        Local $namespaces[UBound($parts, 1)]
+        Local $i = 0
+
+        For $part In $parts
+            If $i Then
+                $namespaces[$i] = $namespaces[UBound($namespaces, 1) - 1]&':'&$part
+            Else
+                $namespaces[$i] = $part
+            EndIf
+            $i += 1
+        Next
+
+        return $namespaces;
+    EndFunc
+
+    Func init()
+        If ($this.initialized) Then Return
+        $this.initialized = True
+
+        For $command In $this.getDefaultCommands()
+            $this.add($command)
+        Next
+    EndFunc
+EndClass
+
+Func __Application_ArrayMerge2($aA, $aB)
+    Return __Application_ArrayMerge($aA, $aB)
+EndFunc
+
+Func __Application_ArrayMerge(ByRef $aA, ByRef $aB)
+    Local $aC[UBound($aA, 1) + UBound($aB, 1)]
+    Local $i, $j
+    For $i = 0 To UBound($aA, 1) - 1 Step +1
+        $aC[$i] = $aA[$i]
+    Next
+    For $j = 0 To UBound($aB, 1) - 1 Step +1
+        $aC[$i + $j] = $aB[$j]
+    Next
+    Return $aC
+EndFunc
+
+Func __Application_ArrayUnique(ByRef $aA)
+    Local $aB[UBound($aA, 1)]
+
+    Local $k = 0
+    For $i = 0 To UBound($aA, 1) - 1 Step +1
+        For $j = 0 To $k Step +1
+            If (IsString($aA[$i]) And $aA[$i] == $aB[$j]) Or $aA[$i] = $aB[$j] Then ContinueLoop 2
+        Next
+        $aB[$k] = $aA[$i]
+        $k += 1
+    Next
+
+    Redim $aB[$k]
+    Return $aB
+EndFunc
+
+Func __Application_ArrayFilter(ByRef $aA)
+    Local $aB[UBound($aA, 1)]
+    Local $j = 0
+    For $i = 0 To UBound($aA, 1) - 1 Step +1
+        If (IsString($aA[$i]) And $aA[$i] == "") Or ((Not IsNumber($aA[$i])) And Not $aA[$i]) Then ContinueLoop
+        $aB[$i] = $aA[$i]
+        $j += 1
+    Next
+
+    Redim $aB[$j]
+    Return $aB
+EndFunc
+
+; #FUNCTION# =====================================================================================================================
+; Name...........: StringRegExpReplaceCallback
+; Description ...:
+; Syntax.........: StringRegExpReplaceCallback($sString, $sPattern, $sFunc [, $iLimit ] )
+; Parameters ....: $sString       - The input string.
+;                  $sPattern      - The regular expression to compare. See StringRegExp for pattern definition characters.
+;                  $sFunc         - The name of the user function to call.
+;                  $iLimit        - [Optional] The max number of time to call the callback function. Default (zero) is unlimited.
+; Return values .: Success        - The new string. The number of callbacks done.
+;                  Failure        - Will return the original string and set the @error flag.
+; Author ........: Mat
+; Modified.......:
+; Remarks .......: The callback function should have a single argument. This will be an array of matches, with the complete match
+;                  in the first element.
+; Related .......:
+; Link ..........: http://www.php.net/manual/en/function.preg-replace-callback.php
+; Example .......: Yes
+; ================================================================================================================================
+Func __Application_StringRegExpReplaceCallback($sString, $sPattern, $sFunc, $iLimit = 0)
+    Local $iOffset = 1, $iDone = 0, $iMatchOffset
+
+    While True
+        $aRes = StringRegExp($sString, $sPattern, 2, $iOffset)
+        If @error Then ExitLoop
+
+        $sRet = Call($sFunc, $aRes)
+        If @error Then Return SetError(@error, $iDone, $sString)
+
+        $iOffset = StringInStr($sString, $aRes[0], 1, 1, $iOffset)
+        $sString = StringLeft($sString, $iOffset - 1) & $sRet & StringMid($sString, $iOffset + StringLen($aRes[0]))
+        $iOffset += StringLen($sRet)
+
+        $iDone += 1
+        If $iDone = $iLimit Then ExitLoop
+    WEnd
+
+    Return SetExtended($iDone, $sString)
+EndFunc   ;==>StringRegExpReplaceCallback
+
+Func __Application_Anonymous1600460614($matches)
+    return __Application_preg_quote($matches[1])&'[^:]*'
+EndFunc
+
+Func __Application_preg_quote($string)
+    Return StringRegExpReplace($string, "[.\\+*?[^\]$(){}=!<>|:\-#]", "\\$0")
+EndFunc
+
+Func __Application_preg_grep($pattern, ByRef $input)
+    Local $aA[UBound($input, 1)]
+    Local $count = 0
+    Local $vElement
+    For $vElement In $input
+        If Not StringRegExp($vElement, $pattern) Then ContinueLoop
+        $aA[$count] = $vElement
+        $count += 1
+    Next
+    Redim $aA[$count]
+    Return $aA
+EndFunc
+
+Func __Application_Anonymous1600462464($matches)
+    Return __Application_preg_quote($matches[1])&'[^:]*'
+EndFunc
+
+Func __Application_Array($iSize = 0)
+    Local $a[$iSize]
+    Return $a
+EndFunc
