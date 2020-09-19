@@ -1,0 +1,1 @@
+{"name":"au3Console","version":"1.0.0","description":"Eases the creation of beautiful and testable command line interfaces.","main":"Application.au3","scripts":{},"dependencies":{"autoit":">=3.3.14.5","au3class":"1.0.2","au3obj":"1.0.0","au3unit":"1.0.0"},"devDependencies":{},"bin":{}}
