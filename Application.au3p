@@ -6,6 +6,8 @@
 
 #include "Terminal.au3"
 #include "Command/Command.au3"
+#include "Command/HelpCommand.au3"
+#include "Command/ListCommand.au3"
 
 #cs
 use Symfony\Component\Console\Command\Command;
