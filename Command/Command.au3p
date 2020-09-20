@@ -11,7 +11,7 @@ Class Command
     $application
     $name
     $processTitle
-    $aliases = []
+    $aliases = __Application_Array()
     $definition
     $hidden = false
     $help = ''
@@ -19,8 +19,8 @@ Class Command
     $fullDefinition
     $ignoreValidationErrors = false
     $code
-    $synopsis = []
-    $usages = []
+    $synopsis = __Application_Array()
+    $usages = __Application_Array()
     $helperSet
 
     Func __construct($name = Null)
