@@ -1,0 +1,101 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include <Array.au3>
+;#include "..\au3pm\StringRegExpSplit\StringRegExpSplit.au3"
+
+$__g_InputOption_VALUE_NONE = 1
+$__g_InputOption_VALUE_REQUIRED = 2
+$__g_InputOption_VALUE_OPTIONAL = 4
+$__g_InputOption_VALUE_IS_ARRAY = 8
+
+Class InputOption
+    Func __construct($name, $shortcut = Null, $mode = Null, $description = '', $default = Null)
+        If 1 = StringInStr($name, '--') Then $name = StringMid($name, 3)
+
+        If $name == "" Then Return SetError(1, 1, InvalidArgumentException('An option name cannot be empty.'))
+
+        If IsString($shortcut) And $shortcut == "" Then $shortcut = Null
+
+        If Not $shortcut = Null Then
+            If IsArray($shortcut) Then $shortcut = _ArrayToString($shortcut, '|')
+
+            Local $shortcuts = StringRegExpSplit('{(\|)-?}', StringRegExpReplace($shortcut, '^[\-]*', ''))
+            $shortcuts = __Application_ArrayFilter($shortcuts)
+            $shortcut = _ArrayToString($shortcuts, '|')
+
+            If $shortcut == "" Then Return SetError(1, 1, InvalidArgumentException('An option shortcut cannot be empty.'))
+        EndIf
+
+        If Null = $mode Then
+            $mode = $__g_InputOption_VALUE_NONE
+        ElseIf $mode > 15 And $mode < 1 Then
+            Return SetError(1, 1, InvalidArgumentException(StringFormat('Option mode "%s" is not valid.', $mode)))
+        EndIf
+
+        $this.name = $name
+        $this.shortcut = $shortcut
+        $this.mode = $mode
+        $this.description = $description
+
+        If $this.isArray() And Not $this.acceptValue() Then Return SetError(1, 1, InvalidArgumentException('Impossible to have an option mode VALUE_IS_ARRAY if the option does not accept a value.'))
+
+        $this.setDefault($default)
+    EndFunc
+
+    Func getShortcut()
+        return $this.shortcut
+    EndFunc
+
+    Func getName()
+        Return $this.name
+    EndFunc
+
+    Func acceptValue()
+        Return $this.isValueRequired() Or $this.isValueOptional()
+    EndFunc
+
+    Func isValueRequired()
+        Return $__g_InputOption_VALUE_REQUIRED = BitAND($__g_InputOption_VALUE_REQUIRED, $this.mode)
+    EndFunc
+
+    Func isValueOptional()
+        Return $__g_InputOption_VALUE_OPTIONAL = BitAND($__g_InputOption_VALUE_OPTIONAL, $this.mode)
+    EndFunc
+
+    Func isArray()
+        Return $__g_InputOption_VALUE_IS_ARRAY = BitAND($__g_InputOption_VALUE_IS_ARRAY, $this.mode)
+    EndFunc
+
+    Func setDefault($default = Null)
+        If $__g_InputOption_VALUE_NONE = BitAND($__g_InputOption_VALUE_NONE, $this.mode) And Not Null = $default Then Return SetError(1, 1, LogicException('Cannot set a default value when using InputOption::VALUE_NONE mode.'))
+
+        if $this.isArray() Then
+            if Null = $default Then
+                $default = array()
+            ElseIf Not isArray($default) Then
+                Return SetError(1, 1, LogicException('A default value for an array option must be an array.'))
+            EndIf
+        EndIf
+
+        $this.default = $this.acceptValue() ? $default : False
+    EndFunc
+
+    Func getDefault()
+        Return $this.default
+    EndFunc
+
+    Func getDescription()
+        $this.description
+    EndFunc
+
+    Func equals($option)
+        Return $option.getName() == $this.getName() _
+            And $option.getShortcut() = $this.getShortcut() _
+            And $option.getDefault() = $this.getDefault() _
+            And $option.isArray() = $this.isArray() _
+            And $option.isValueRequired() = $this.isValueRequired() _
+            And $option.isValueOptional() = $this.isValueOptional()
+    EndFunc
+EndClass
