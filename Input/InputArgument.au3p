@@ -1,0 +1,64 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include "..\helpers.au3"
+
+$__g_InputArgument_REQUIRED = 1
+$__g_InputArgument_OPTIONAL = 2
+$__g_InputArgument_IS_ARRAY = 4
+
+Class InputArgument
+    $name
+    $mode
+    $default
+    $description
+
+    Func __construct($name, $mode = Null, $description = '', $default = Null)
+        If Null = $mode Then
+            $mode = $__g_InputArgument_OPTIONAL
+        ElseIf $mode > 7 Or $mode < 1 Then
+            Return SetError(1, 1, InvalidArgumentException(StringFormat('Argument mode "%s" is not valid.', $mode)))
+        EndIf
+
+        $this.name = $name
+        $this.mode = $mode
+        $this.description = $description
+
+        $this.setDefault($default)
+    EndFunc
+
+    Func getName()
+        Return $this.name
+    EndFunc
+
+    Func isRequired()
+        return $__g_InputArgument_REQUIRED = BitAND($__g_InputArgument_REQUIRED, $this.mode)
+    EndFunc
+
+    Func isArray()
+        Return $__g_InputArgument_IS_ARRAY = BitAND($__g_InputArgument_IS_ARRAY, $this.mode)
+    EndFunc
+
+    Func setDefault($default = Null)
+        If $__g_InputArgument_REQUIRED = $this.mode And Not Null = $default Then Return SetError(1, 1, LogicException('Cannot set a default value except for InputArgument::OPTIONAL mode.'))
+
+        If $this.isArray() Then
+            If Null = $default Then
+                $default = array()
+            ElseIf Not isArray($default)
+                Return SetError(1, 1, LogicException('A default value for an array argument must be an array.'))
+            EndIf
+        EndIf
+
+        $this.default = $default
+    EndFunc
+
+    Func getDefault()
+        Return $this.default
+    EndFunc
+
+    Func getDescription()
+        Return $this.description
+    EndFunc
+EndClass
