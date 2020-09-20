@@ -1,0 +1,42 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include "..\helpers.au3"
+
+Class DescriptorHelper
+    $descriptors = __Application_Array()
+
+    Func __construct()
+        $this _
+            .register('txt', TextDescriptor()) _
+            .register('xml', XmlDescriptor()) _
+            .register('json', JsonDescriptor()) _
+            .register('md', MarkdownDescriptor())
+    EndFunc
+
+    Func describe($output, $object, $options = [])
+        Local $tmp = [ _
+            ['raw_text', false], _
+            ['format', 'txt'], _
+        ]
+        $options = __Application_ArrayMerge($tmp, $options);
+
+        If __au3Console_array_assoc_isset($this.descriptors, __au3Console_array_assoc_get($options, 'format')) Then
+            Return SetError(1, 1, InvalidArgumentException(StringFormat('Unsupported format "%s".', __au3Console_array_assoc_get($options, 'format'))))
+        EndIf
+
+        $descriptor = __au3Console_array_assoc_get($this.descriptors, __au3Console_array_assoc_get($options, 'format'))
+        $descriptor.describe($output, $object, $options)
+    EndFunc
+
+    Func register($format, $descriptor)
+        __au3Console_array_assoc_set($this.descriptors, $format, $descriptor)
+
+        return $this
+    EndFunc
+
+    Func getName()
+        return 'descriptor'
+    EndFunc
+EndClass
