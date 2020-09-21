@@ -1,2 +1,2 @@
 # au3console
-Console wrapper for AutoIt3
+Eases the creation of beautiful and testable command line interfaces.
