@@ -412,10 +412,10 @@ Class Application
         $allCommands = $this.commandLoader ? __Application_ArrayMerge2($this.commandLoader.getNames(), array_keys($this.commands)) : array_keys($this.commands);
         ;$expr = preg_replace_callback('{([^:]+|)}', function ($matches) { return preg_quote($matches[1]).'[^:]*'; }, $name);
         $expr = __Application_StringRegExpReplaceCallback($name, '{([^:]+|)}', __Application_Anonymous1600462464)
-        $commands = __Application_preg_grep('{^'&$expr&'}', $allCommands);
+        Local $commands = __Application_preg_grep('{^'&$expr&'}', $allCommands);
 
         if (UBound($commands, 1) = 0) then
-            $commands = __Application_preg_grep('{^'&$expr&'}i', $allCommands);
+            Local $commands = __Application_preg_grep('{^'&$expr&'}i', $allCommands);
         endif
 
         ; if no commands matched or we just matched namespaces
@@ -502,44 +502,43 @@ Class Application
         return $command
     EndFunc
 
-    Func all($namespace = null)
+    Func all($namespace = Null)
         $this.init();
 
-        if (Null = $namespace) Then
+        if Null = $namespace Then
             if (Not $this.commandLoader) Then
                 return $this.commands
             EndIf
 
-            #cs
             Local $commands = $this.commands
-            foreach ($this.commandLoader.getNames() as $name) {
-                if (!isset($commands[$name]) && $this.has($name)) Then
-                    $commands[$name] = $this.get($name);
+            For $name In $this.commandLoader.getNames()
+                If (Not __au3Console_array_assoc_isset($commands, $name)) And $this.has($name) Then
+                    __au3Console_array_assoc_set($commands, $name, $this.get($name))
                 EndIf
-            }
-            #ce
+            Next
 
             return $commands;
         EndIf
 
-        #cs
-        Local $commands[0]
-        foreach ($this.commands as $name => $command) {
-            If ($namespace === $this.extractNamespace($name, substr_count($namespace, ':') + 1)) Then
-                $commands[$name] = $command;
+        Local $_commands = $this.commands
+        Local $commands[0][2]
+        Local $i
+        Local $name, $command
+        For $i = 0 To UBound($_commands, 1) - 1 Step +1
+            $name = $_commands[$i][0]
+            $command = $_commands[$i][1]
+            If $namespace == $this.extractNamespace($name, UBound(StringRegExp($namespace, '\:', 3)) + 1) Then
+                __au3Console_array_assoc_set($commands, $name, $command)
             EndIf
-        }
-        #ce
+        Next
 
-        #cs
-        if ($this.commandLoader) Then
-            foreach ($this.commandLoader.getNames() as $name) {
-                if (!isset($commands[$name]) && $namespace === $this.extractNamespace($name, substr_count($namespace, ':') + 1) && $this.has($name)) Then
-                    $commands[$name] = $this.get($name);
+        if $this.commandLoader Then
+            For $name In $this.commandLoader.getNames()
+                If (Not __au3Console_array_assoc_isset($commands, $name)) And $namespace == $this.extractNamespace($name, UBound(StringRegExp($namespace, '\:', 3)) + 1) And $this.has($name) Then
+                    __au3Console_array_assoc_set($commands, $name, $this.get($name))
                 EndIf
-            }
+            Next
         EndIf
-        #ce
 
         return $commands
     EndFunc
@@ -796,7 +795,7 @@ Class Application
     EndFunc
 
     Func extractNamespace($name, $limit = Null)
-        Local $parts = StringSplit($name, ':')
+        Local $parts = StringSplit($name, ':', 2)
         Redim $parts[UBound($parts, 1) - 1]
 
         If Not Null = $parts Then
