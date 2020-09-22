@@ -4,6 +4,7 @@
 
 #include <Array.au3>
 
+#include "helpers.au3"
 #include "Terminal.au3"
 #include "Command/Command.au3"
 #include "Command/HelpCommand.au3"
@@ -281,15 +282,18 @@ Class Application
         ; Will "throw" if the command is not correctly initialized.
         $command.getDefinition()
 
-        If (Not $comman.getName()) Then
+        If (Not $command.getName()) Then
             throw new LogicException(sprintf('The command defined in "%s" cannot have an empty name.', get_debug_type($command)));
         EndIf
 
-        $this.commands[$command.getName()] = $command;FIXME: assoc array is emulated
+        Local $commands = $this.commands
+        __au3Console_array_assoc_set($commands, $command.getName(), $command)
 
         For $alias In $command.getAliases()
-            $this.commands[$alias] = $command;FIXME: assoc array is emulated
+            __au3Console_array_assoc_set($commands, $alias, $command)
         Next
+
+        $this.commands = $commands
 
         return $command
     EndFunc
