@@ -1,6 +1,11 @@
 #AutoIt3Wrapper_Run_AU3Check=N
 
 #include-once
+
+#include "..\Input\InputArgument.au3"
+#include "..\Input\InputDefinition.au3"
+#include "..\Input\InputOption.au3"
+
  ;Extends Command
 Class HelpCommand
     $application
@@ -22,7 +27,7 @@ Class HelpCommand
     Func __construct($name = Null)
         $this.definition = InputDefinition();
 
-        Local $name = $this.getDefaultName()
+        $name = $this.getDefaultName()
 
         If ((Not Null = $name) Or (Not Null = $name)) Then
             $this.setName($name);
@@ -75,16 +80,17 @@ Class HelpCommand
     Func configure()
         $this.ignoreValidationErrors();
 
-        $this.setName('help').setDefinition([ _
-                new InputArgument('command_name', InputArgument::OPTIONAL, 'The command name', 'help'), _
-                new InputOption('format', null, InputOption::VALUE_REQUIRED, 'The output format (txt, xml, json, or md)', 'txt'), _
-                new InputOption('raw', null, InputOption::VALUE_NONE, 'To output raw command help'), _
-            ]).setDescription('Displays help for a command').setHelp( _
+        Local $tmp = [ _
+            InputArgument('command_name', $__g_InputArgument_OPTIONAL, 'The command name', 'help'), _
+            InputOption('format', Null, $__g_InputOption_VALUE_REQUIRED, 'The output format (txt, xml, json, or md)', 'txt'), _
+            InputOption('raw', Null, $__g_InputOption_VALUE_NONE, 'To output raw command help') _
+        ]
+        $this.setName('help').setDefinition($tmp).setDescription('Displays help for a command').setHelp( _
 'The <info>%command.name%</info> command displays help for a given command:'&@CRLF& _
 '  <info>php %command.full_name% list</info>'&@CRLF& _
 'You can also output the help in other formats by using the <comment>--format</comment> option:'&@CRLF& _
 '  <info>php %command.full_name% --format=xml list</info>'&@CRLF& _
-'To display the list of available commands, please use the <info>list</info> command.'& _
+'To display the list of available commands, please use the <info>list</info> command.' _
             )
     EndFunc
 
@@ -360,7 +366,7 @@ Class HelpCommand
     EndFunc
 
     Func validateName($name)
-        if (Not StringRegExp($name, '/^[^\:]++(\:[^\:]++)*$/')) Then
+        if (Not StringRegExp($name, '^[^\:]++(\:[^\:]++)*$')) Then
             Return SetError(1, 1, InvalidArgumentException(StringFormat('Command name "%s" is invalid.', $name)))
         EndIf
     EndFunc
