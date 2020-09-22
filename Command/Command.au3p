@@ -26,7 +26,7 @@ Class Command
     Func __construct($name = Null)
         $this.definition = InputDefinition();
 
-        Local $name = $this.getDefaultName()
+        $name = $this.getDefaultName()
 
         If ((Not Null = $name) Or (Not Null = $name)) Then
             $this.setName($name);
@@ -339,7 +339,7 @@ Class Command
     EndFunc
 
     Func validateName($name)
-        if (Not StringRegExp($name, '/^[^\:]++(\:[^\:]++)*$/')) Then
+        if (Not StringRegExp($name, '^[^\:]++(\:[^\:]++)*$')) Then
             Return SetError(1, 1, InvalidArgumentException(StringFormat('Command name "%s" is invalid.', $name)))
         EndIf
     EndFunc
