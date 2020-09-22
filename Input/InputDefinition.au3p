@@ -1,0 +1,215 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include "..\helpers.au3"
+
+Class InputDefinition
+    $arguments
+    $requiredCount
+    $hasAnArrayArgument = false
+    $hasOptional
+    $options
+    $shortcuts
+
+    Func __construct($definition = __au3Console_array())
+        $this.setDefinition($definition)
+    EndFunc
+
+    Func setDefinition($definition)
+        Local $arguments[0]
+        Local $options[0]
+        For $item In $definition
+            ;FIXME: instanceof currently not supported
+            ;If $item instanceof InputOption Then
+            ;    Redim $options[UBound($options, 1) + 1]
+            ;    $options[UBound($options, 1) - 1] = $item
+            ;Else
+                Redim $arguments[UBound($arguments, 1) + 1]
+                $arguments[UBound($arguments, 1) - 1] = $item
+            ;EndIf
+        Next
+
+        $this.setArguments($arguments)
+        $this.setOptions($options)
+    EndFunc
+
+    Func setArguments($arguments = __au3Console_array())
+        $this.arguments = __au3Console_array()
+        $this.requiredCount = 0
+        $this.hasOptional = False
+        $this.hasAnArrayArgument = False
+        $this.addArguments($arguments)
+    EndFunc
+
+    Func addArguments($arguments = __au3Console_array())
+        if (Not Null = $arguments) Then
+            For $argument In $arguments
+                $this.addArgument($argument)
+            Next
+        EndIf
+    EndFunc
+
+    Func addArgument($argument)
+        If __au3Console_array_assoc_isset($this.arguments, $argument.getName()) Then Return SetError(1, 1, LogicException(StringFormat('An argument with name "%s" already exists.', $argument.getName())))
+
+        If $this.hasAnArrayArgument Then Return SetError(1, 1, LogicException('Cannot add an argument after an array argument.'))
+
+        If $argument.isRequired() And $this.hasOptional Then Return SetError(1, 1, LogicException('Cannot add a required argument after an optional one.'))
+
+        If $argument.isArray() Then $this.hasAnArrayArgument = True
+
+        If $argument.isRequired() Then
+            $this.requiredCount += 1
+        Else
+            $this.hasOptional = True
+        EndIf
+
+        __au3Console_array_assoc_set($this.arguments, $argument.getName(), $argument)
+    EndFunc
+
+    Func getArgument($name)
+        If Not $this.hasArgument($name) Then Return SetError(1, 1, InvalidArgumentException(StringFormat('The "%s" argument does not exist.', $name)))
+
+        Return IsNumber($name) ? $this.arguments[$name][1] : __au3Console_array_assoc_get($this.arguments, $name)
+    EndFunc
+
+    Func hasArgument($name)
+        Return IsNumber($name) ? UBound($this.arguments, 1) > $name : __au3Console_array_assoc_isset($this.arguments, $name)
+    EndFunc
+
+    Func getArguments()
+        Return $this.arguments
+    EndFunc
+
+    Func getArgumentCount()
+        Return $this.hasAnArrayArgument ? 16777216 : UBound($this.arguments, 1)
+    EndFunc
+
+    Func getArgumentRequiredCount()
+        return $this.requiredCount
+    EndFunc
+
+    Func getArgumentDefaults()
+        Local $values[UBound($this.arguments, 1)][2]
+        Local $arguments = $this.arguments
+        For $i = 0 To UBound($this.arguments, 1) - 1 Step +1
+            $values[$i][0] = $arguments[$i].getName()
+            $values[$i][1] = $arguments[$i].getDefault()
+        Next
+
+        Return $values
+    EndFunc
+
+    Func setOptions($options = __au3Console_array())
+        $this.options = __au3Console_array()
+        $this.shortcuts = __au3Console_array()
+        $this.addOptions($options)
+    EndFunc
+
+    Func addOptions($options = __au3Console_array())
+        For $option In $options
+            $this.addOption($option)
+        Next
+    EndFunc
+
+    Func addOption($option)
+        ;if (isset($this.options[$option->getName()]) && !$option->equals($this->options[$option->getName()])) Then Return SetError(1, 1, LogicException(sprintf('An option named "%s" already exists.', $option->getName())))
+
+        if ($option.getShortcut()) Then
+            For $shortcut In StringSplit($option.getShortcut(), '|')
+                If __au3Console_array_assoc_isset($this.shortcuts, $shortcut) And Not $option.equals(__au3Console_array_assoc_get($this.options, __au3Console_array_assoc_get($this.shortcuts, $shortcut))) Then Return SetError(1, 1, LogicException(StringFormat('An option with shortcut "%s" already exists.', $shortcut)))
+            Next
+        EndIf
+
+        $this->options[$option->getName()] = $option;
+        if ($option.getShortcut()) Then
+            For $shortcut In StringSplit($option.getShortcut(), '|')
+                __au3Console_array_assoc_set($this.shortcuts, $shortcut, $option->getName())
+            Next
+        EndIf
+    EndFunc
+
+    Func getOption($name)
+        If Not $this.hasOption($name) Then Return SetError(1, 1, InvalidArgumentException(StringFormat('The "--%s" option does not exist.', $name)))
+
+        Return __au3Console_array_assoc_get($this.options, $name)
+    EndFunc
+
+    Func hasOption($name)
+        Return __au3Console_array_assoc_isset($this.options, $name)
+    EndFunc
+
+    Func getOptions()
+        Return $this.options
+    EndFunc
+
+    Func hasShortcut($name)
+        Return __au3Console_array_assoc_isset($this.shortcuts, $name)
+    EndFunc
+
+    Func getOptionForShortcut($shortcut)
+        Return $this.getOption($this.shortcutToName($shortcut))
+    EndFunc
+
+    Func getOptionDefaults()
+        Local $values[0][2]
+        For $option In $this.options
+            __au3Console_array_assoc_set($value, $option.getName(), $option.getDefault())
+        Next
+
+        Return $values
+    EndFunc
+
+    Func shortcutToName($shortcut)
+        If Not __au3Console_array_assoc_isset($this.shortcuts, $shortcut) Then Return SetError(1, 1, InvalidArgumentException(StringFormat('The "-%s" option does not exist.', $shortcut)))
+
+        Return __au3Console_array_assoc_get($this.shortcuts, $shortcut)
+    EndFunc
+
+    Func getSynopsis($short = False)
+        #cs
+        $elements = [];
+
+        if ($short && $this->getOptions()) {
+            $elements[] = '[options]';
+        } elseif (!$short) {
+            foreach ($this->getOptions() as $option) {
+                $value = '';
+                if ($option->acceptValue()) {
+                    $value = sprintf(
+                        ' %s%s%s',
+                        $option->isValueOptional() ? '[' : '',
+                        strtoupper($option->getName()),
+                        $option->isValueOptional() ? ']' : ''
+                    );
+                }
+
+                $shortcut = $option->getShortcut() ? sprintf('-%s|', $option->getShortcut()) : '';
+                $elements[] = sprintf('[%s--%s%s]', $shortcut, $option->getName(), $value);
+            }
+        }
+
+        if (\count($elements) && $this->getArguments()) {
+            $elements[] = '[--]';
+        }
+
+        $tail = '';
+        foreach ($this->getArguments() as $argument) {
+            $element = '<'.$argument->getName().'>';
+            if ($argument->isArray()) {
+                $element .= '...';
+            }
+
+            if (!$argument->isRequired()) {
+                $element = '['.$element;
+                $tail .= ']';
+            }
+
+            $elements[] = $element;
+        }
+
+        return implode(' ', $elements).$tail;
+        #ce
+    EndFunc
+EndClass
