@@ -28,7 +28,7 @@ Class ListCommand
     Func __construct($name = Null)
         $this.definition = InputDefinition();
 
-        Local $name = $this.getDefaultName()
+        $name = $this.getDefaultName()
 
         If ((Not Null = $name) Or (Not Null = $name)) Then
             $this.setName($name);
@@ -80,9 +80,9 @@ Class ListCommand
 
     Func configure()
         Local $tmp = [ _
-            InputArgument('namespace', InputArgument::OPTIONAL, 'The namespace name'), _
-            InputOption('raw', null, InputOption::VALUE_NONE, 'To output raw command list'), _
-            InputOption('format', null, InputOption::VALUE_REQUIRED, 'The output format (txt, xml, json, or md)', 'txt'), _
+            InputArgument('namespace', $__g_InputArgument_OPTIONAL, 'The namespace name'), _
+            InputOption('raw', null, $__g_InputOption_VALUE_NONE, 'To output raw command list'), _
+            InputOption('format', null, $__g_InputOption_VALUE_REQUIRED, 'The output format (txt, xml, json, or md)', 'txt') _
         ]
         $this _
             .setName('list') _
@@ -366,7 +366,7 @@ Class ListCommand
     EndFunc
 
     Func validateName($name)
-        if (Not StringRegExp($name, '/^[^\:]++(\:[^\:]++)*$/')) Then
+        if (Not StringRegExp($name, '^[^\:]++(\:[^\:]++)*$')) Then
             Return SetError(1, 1, InvalidArgumentException(StringFormat('Command name "%s" is invalid.', $name)))
         EndIf
     EndFunc
