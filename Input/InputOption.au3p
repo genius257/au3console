@@ -11,6 +11,11 @@ $__g_InputOption_VALUE_OPTIONAL = 4
 $__g_InputOption_VALUE_IS_ARRAY = 8
 
 Class InputOption
+    $name
+    $shortcut
+    $mode
+    $description
+
     Func __construct($name, $shortcut = Null, $mode = Null, $description = '', $default = Null)
         If 1 = StringInStr($name, '--') Then $name = StringMid($name, 3)
 
