@@ -28,8 +28,10 @@ Class Command
 
         $name = $this.getDefaultName()
 
-        If ((Not Null = $name) Or (Not Null = $name)) Then
-            $this.setName($name);
+        If (Not Null = $name) Then
+            $this.setName($name)
+        ElseIf (Not Null = $this.getDefaultName()) Then
+            $this.setName(this.getDefaultName())
         EndIf
 
         $this.configure()
