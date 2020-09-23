@@ -305,17 +305,9 @@ Class Application
         If Not $this.has($name) Then Return SetError(1, 1, 1); throw new CommandNotFoundException(sprintf('The command "%s" does not exist.', $name));
 
         ; When the command has a different name than the one used at the command loader level
-        Local $commands = $this.commands
-        Local $tmp = False
-        Local $i
-        For $i = 0 To UBound($command, 1)-1 Step +1
-            If $commands[$i][0] = $name Then
-                $tmp = True
-                $command = $commands[$i][1]
-                ExitLoop
-            EndIf
-        Next
-        If $tmp = False Then Return SetError(1, 1, 1);throw new CommandNotFoundException(sprintf('The "%s" command cannot be found because it is registered under multiple names. Make sure you don\'t set a different name via constructor or "setName()".', $name));
+        If Not __au3Console_array_assoc_isset($this.commands, $name) Then Return SetError(1, 1, CommandNotFoundException(StringFormat('The "%s" command cannot be found because it is registered under multiple names. Make sure you don''t set a different name via constructor or "setName()".', $name)))
+
+        $command = __au3Console_array_assoc_get($this.commands, $name)
 
         If $this.wantHelps Then
             $this.wantHelps = False
@@ -332,17 +324,10 @@ Class Application
     Func has($name)
         $this.init()
 
-        Local $commands = $this.commands
-        Local $found = False
-        Local $i
-        For $i = 0 To UBound($commands, 1) - 1 Step +1
-            If $commands[$i][0] = $name Then
-                $found = True
-                ExitLoop
-            EndIf
-        Next
+        ;ConsoleWrite($name&@CRLF)
+        ;ConsoleWrite(StringFormat('%s || (%s && %s && %s)\n', __au3Console_array_assoc_isset($this.commands, $name), IsObj($this.commandLoader), $this.commandLoader.has($name), IsObj($this.add($this.commandLoader.get($name)))))
 
-        Return $found Or ($this.commandLoader And $this.commandLoader.has($name) And $this.add($this.commandLoader.get($name)))
+        Return __au3Console_array_assoc_isset($this.commands, $name) Or (IsObj($this.commandLoader) And $this.commandLoader.has($name) And IsObj($this.add($this.commandLoader.get($name))))
     EndFunc
 
     Func getNamespaces()
@@ -409,7 +394,7 @@ Class Application
             Return $this.get($name)
         EndIf
 
-        $allCommands = $this.commandLoader ? __Application_ArrayMerge2($this.commandLoader.getNames(), array_keys($this.commands)) : array_keys($this.commands);
+        $allCommands = IsObj($this.commandLoader) ? __Application_ArrayMerge2($this.commandLoader.getNames(), array_keys($this.commands)) : array_keys($this.commands);
         ;$expr = preg_replace_callback('{([^:]+|)}', function ($matches) { return preg_quote($matches[1]).'[^:]*'; }, $name);
         $expr = __Application_StringRegExpReplaceCallback($name, '{([^:]+|)}', __Application_Anonymous1600462464)
         Local $commands = __Application_preg_grep('{^'&$expr&'}', $allCommands);
@@ -506,7 +491,7 @@ Class Application
         $this.init();
 
         if Null = $namespace Then
-            if (Not $this.commandLoader) Then
+            if (Not IsObj($this.commandLoader)) Then
                 return $this.commands
             EndIf
 
@@ -532,7 +517,7 @@ Class Application
             EndIf
         Next
 
-        if $this.commandLoader Then
+        if IsObj($this.commandLoader) Then
             For $name In $this.commandLoader.getNames()
                 If (Not __au3Console_array_assoc_isset($commands, $name)) And $namespace == $this.extractNamespace($name, UBound(StringRegExp($namespace, '\:', 3)) + 1) And $this.has($name) Then
                     __au3Console_array_assoc_set($commands, $name, $this.get($name))
