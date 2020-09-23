@@ -18,7 +18,7 @@ Func __au3Console_array_assoc_get($array, $key)
 EndFunc
 
 Func __au3Console_array_assoc_isset($array, $key)
-    Return Not (array_assoc_get($array, $key) = Null)
+    Return Not (__au3Console_array_assoc_get($array, $key) = Null)
 EndFunc
 
 Func __au3Console_array_assoc_set(ByRef $array, $key, $value)
