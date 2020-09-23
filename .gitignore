@@ -2,3 +2,8 @@ au3pm/
 au3pm.exe
 7za.exe
 *.old.au3
+**/*.au3
+#!*/AutoItObject_Internal.au3
+!Tests/*Test.au3
+!helpers.au3
+!Transpile.au3
