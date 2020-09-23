@@ -1,0 +1,37 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include "..\helpers.au3"
+
+Class FactoryCommandLoader
+    $factories
+
+    Func __construct($factories)
+        $this.factories = $factories
+    EndFunc
+
+    Func has($name)
+        Return __au3Console_array_assoc_isset($this.factories, $name)
+    EndFunc
+
+    Func get($name)
+        If (Not __au3Console_array_assoc_isset($this.factories, $name)) Then
+            Return SetError(1, 1, CommandNotFoundException(StringFormat('Command "%s" does not exist.', $name)))
+        EndIf
+
+        $factory = __au3Console_array_assoc_get($this.factories, $name)
+
+        Return $factory()
+    EndFunc
+
+    Func getNames()
+        Local $factories = $this.factories
+        Local $keys[UBound($factories, 1)]
+        Local $i
+        For $i = 0 To UBound($factories, 1) - 1 Step +1
+            $keys[$i] = $factories[$i][0]
+        Next
+        Return $keys
+    EndFunc
+EndClass
