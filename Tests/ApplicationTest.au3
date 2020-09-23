@@ -4,6 +4,7 @@
 
 #include "..\au3pm\au3unit\Unit\assert.au3"
 #include "..\Application.au3"
+#include "..\CommandLoader\FactoryCommandLoader.au3"
 
 #include ".\Fixtures\FooCommand.au3"
 #include ".\Fixtures\Foo1Command.au3"
