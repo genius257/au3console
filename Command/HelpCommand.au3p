@@ -8,6 +8,7 @@
 
  ;Extends Command
 Class HelpCommand
+    $__class = 'Command'
     $application
     $name
     $processTitle
@@ -212,11 +213,11 @@ Class HelpCommand
     EndFunc
 
     Func setDefinition($definition)
-        ;If ($definition instanceof InputDefinition) Then
-        ;    $this.definition = $definition;
-        ;Else
+        If (IsObj($definition) And $definition.__class == "InputDefinition") Then
+            $this.definition = $definition;
+        Else
             $this.definition.setDefinition($definition);
-        ;EndIf
+        EndIf
 
         $this.fullDefinition = Null;
 

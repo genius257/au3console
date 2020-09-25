@@ -8,6 +8,7 @@ Global Const $__g_Command_FAILURE = 1
 Global $__g_Command_defaultName = Null
 
 Class Command
+    $__class = 'Command'
     $application
     $name
     $processTitle
@@ -187,11 +188,11 @@ Class Command
     EndFunc
 
     Func setDefinition($definition)
-        ;If ($definition instanceof InputDefinition) Then
-        ;    $this.definition = $definition;
-        ;Else
+        If (IsObj($definition) And $definition.__class == "InputDefinition") Then
+            $this.definition = $definition;
+        Else
             $this.definition.setDefinition($definition);
-        ;EndIf
+        EndIf
 
         $this.fullDefinition = Null;
 

@@ -5,6 +5,7 @@
 #include "..\helpers.au3"
 
 Class DescriptorHelper
+    $__class = 'DescriptorHelper'
     $descriptors = __Application_Array()
 
     Func __construct()

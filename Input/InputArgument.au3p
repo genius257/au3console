@@ -9,6 +9,7 @@ $__g_InputArgument_OPTIONAL = 2
 $__g_InputArgument_IS_ARRAY = 4
 
 Class InputArgument
+    $__class = 'InputArgument'
     $name
     $mode
     $default

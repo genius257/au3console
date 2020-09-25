@@ -5,6 +5,7 @@
 #include "..\helpers.au3"
 
 Class InputDefinition
+    $__class = 'InputDefinition'
     $arguments
     $requiredCount
     $hasAnArrayArgument = false
@@ -20,14 +21,13 @@ Class InputDefinition
         Local $arguments[0]
         Local $options[0]
         For $item In $definition
-            ;FIXME: instanceof currently not supported
-            ;If $item instanceof InputOption Then
-            ;    Redim $options[UBound($options, 1) + 1]
-            ;    $options[UBound($options, 1) - 1] = $item
-            ;Else
+            If IsObj($item) And $item.__class == "InputOption" Then
+                Redim $options[UBound($options, 1) + 1]
+                $options[UBound($options, 1) - 1] = $item
+            Else
                 Redim $arguments[UBound($arguments, 1) + 1]
                 $arguments[UBound($arguments, 1) - 1] = $item
-            ;EndIf
+            EndIf
         Next
 
         $this.setArguments($arguments)
@@ -122,7 +122,9 @@ Class InputDefinition
             Next
         EndIf
 
-        $this->options[$option->getName()] = $option;
+        Local $options = $this.options
+        __au3Console_array_assoc_set($options, $option.getName(), $option)
+        $this.options = $options
         if ($option.getShortcut()) Then
             For $shortcut In StringSplit($option.getShortcut(), '|')
                 __au3Console_array_assoc_set($this.shortcuts, $shortcut, $option->getName())

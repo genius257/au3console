@@ -2,6 +2,8 @@
 
 #include <Array.au3>
 
+#include "..\helpers.au3"
+
 #include "..\au3pm\au3unit\Unit\assert.au3"
 #include "..\Application.au3"
 #include "..\CommandLoader\FactoryCommandLoader.au3"
@@ -26,7 +28,7 @@
 #testAll
 	$application = Application();
 	$commands = $application.all();
-	;_ArrayDisplay($commands)
+	assertEquals('Command', __au3Console_array_assoc_get($commands, 'help').__class, '->all() returns the registered commands')
 	;assertInstanceOf('Symfony\\Component\\Console\\Command\\HelpCommand', $commands['help'], '->all() returns the registered commands');
 
 	$application.add(FooCommand());
@@ -36,6 +38,7 @@
 #testAllWithCommandLoader
 	$application = Application();
 	$commands = $application.all();
+	assertEquals('Command', __au3Console_array_assoc_get($commands, 'help').__class, '->all() returns the registered commands')
 	;assertInstanceOf('Symfony\\Component\\Console\\Command\\HelpCommand', $commands['help'], '->all() returns the registered commands');
 
 	$application.add(FooCommand());
@@ -53,6 +56,8 @@
 	$commands = $application.all('foo');
 	assertEquals(2, UBound($commands, 1), '->all() takes a namespace as its first argument')
 	;assertCount(2, $commands, '->all() takes a namespace as its first argument');
+	assertEquals('Command', __au3Console_array_assoc_get($commands, 'foo:bar').__class, '->all() returns the registered commands')
 	;assertInstanceOf(\FooCommand::class, $commands['foo:bar'], '->all() returns the registered commands');
+	assertEquals('Command', __au3Console_array_assoc_get($commands, 'foo:bar1').__class, '->all() returns the registered commands')
 	;assertInstanceOf(\Foo1Command::class, $commands['foo:bar1'], '->all() returns the registered commands');
 #

@@ -3,6 +3,7 @@
 #include-once
 
 Class Terminal
+    $__class = 'Terminal'
     $width = Null
     $height = Null
     $stty = Null

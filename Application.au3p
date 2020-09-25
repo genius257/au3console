@@ -49,6 +49,7 @@ use Symfony\Contracts\Service\ResetInterface;
 #ce
 
 Class Application
+    $__class = 'Application'
     $commands = __Application_Array()
     $wantHelps = False
     $runningCommand

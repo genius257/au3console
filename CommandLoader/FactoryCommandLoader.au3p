@@ -5,6 +5,7 @@
 #include "..\helpers.au3"
 
 Class FactoryCommandLoader
+    $__class = 'FactoryCommandLoader'
     $factories
 
     Func __construct($factories)
