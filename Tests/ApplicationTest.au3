@@ -60,4 +60,46 @@
 	;assertInstanceOf(\FooCommand::class, $commands['foo:bar'], '->all() returns the registered commands');
 	assertEquals('Command', __au3Console_array_assoc_get($commands, 'foo:bar1').__class, '->all() returns the registered commands')
 	;assertInstanceOf(\Foo1Command::class, $commands['foo:bar1'], '->all() returns the registered commands');
-#
+#testRegister
+	$application = Application()
+	$command = $application.register('foo')
+	assertEquals('foo', $command.getName(), '->register() registers a new command')
+#testRegisterAmbiguous
+	$code = Anonymous1601319278
+	Func Anonymous1601319278($input, $output)
+		$output.writeln('It works!')
+	EndFunc
+
+	Global $tmp = ['test']
+
+	$application = Application()
+	$application.setAutoExit(False)
+	$application _
+		.register('test-foo') _
+		.setAliases($tmp) _
+		.setCode($code)
+
+	$application _
+		.register('test-bar') _
+		.setCode($code)
+
+	Global $tmp = ['test']
+	$tester = ApplicationTester($application)
+	$tester.run($tmp)
+	assertStringContainsString('it works!', $tester.getDisplay(True))
+#testAdd
+	$application = Application()
+	$foo = FooCommand()
+	$application.add($foo)
+	$commands = $application.all()
+	$this.assertEquals($foo, __au3Console_array_assoc_get($commands, 'foo:bar'), '->add() registers a command')
+
+	$application = Application()
+	Global $foo = FooCommand()
+	Global $foo1 = Foo1Command()
+	Global $tmp = [$foo, $foo1]
+	$application.addCommands($tmp)
+	$commands = $application->all()
+	Global $tmp1 = [$foo, $foo1]
+	Global $tmp2 = [__au3Console_array_assoc_get($commands, 'foo:bar'), __au3Console_array_assoc_get($commands, 'foo:bar1')]
+	$this->assertEquals($tmp1, $tmp2, '->addCommands() registers an array of commands')
