@@ -21,6 +21,14 @@ Func __au3Console_array_assoc_isset($array, $key)
     Return Not (__au3Console_array_assoc_get($array, $key) = Null)
 EndFunc
 
+Func __au3Console_array_assoc_key_exists($array, $key)
+    Local $i
+    For $i = 0 To UBound($array, 1) - 1 Step +1
+        If $array[$i][0] == $key Then Return True
+    Next
+    Return False
+EndFunc
+
 Func __au3Console_array_assoc_set(ByRef $array, $key, $value)
     Local $i
     For $i = 0 To UBound($array, 1) - 1 Step +1
