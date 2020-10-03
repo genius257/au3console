@@ -1,0 +1,141 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include <WinAPIFiles.au3>
+#include "..\helpers.au3"
+
+Class ApplicationTester
+    $__class = 'ApplicationTester'
+    $application
+    $input
+    $statusCode
+
+    #region TesterTrait
+        $output
+        $inputs = __au3Console_array()
+        $captureStreamsIndependently = False
+
+        Func getDisplay($normalize = False)
+            if Null = $this.output Then
+                Return SetError(1, 1, RuntimeException('Output not initialized, did you execute the command before requesting the display?'))
+            EndIf
+    
+            ;rewind($this.output.getStream())
+            FileSetPos($this.output.getStream(), 0, 0)
+    
+            ;$display = stream_get_contents($this.output.getStream());
+            Local $display = FileRead($this.output.getStream())
+    
+            if $normalize Then
+                $display = StringRegExpReplace($display, "$", StringFormat('\n'))
+            EndIf
+    
+            return $display;
+        EndFunc
+
+        Func getErrorOutput($normalize = False)
+            if Not $this.captureStreamsIndependently Then
+                Return SetError(1, 1, LogicException('The error output is not available when the tester is run without "capture_stderr_separately" option set.'))
+            EndIf
+    
+            ;rewind($this.output.getErrorOutput().getStream())
+            FileSetPos($this.output.getErrorOutput().getStream(), 0, 0)
+    
+            ;$display = stream_get_contents($this->output->getErrorOutput()->getStream())
+            Local $display = FileRead($this.output.getErrorOutput().getStream())
+    
+            if $normalize Then
+                $display = StringRegExpReplace($display, "$", StringFormat('\n'))
+            EndIf
+    
+            return $display
+        EndFunc
+
+        Func getInput()
+            Return $this.input
+        EndFunc
+
+        Func getOutput()
+            Return $this.output
+        EndFunc
+
+        Func getStatusCode()
+            if null = $this.statusCode Then
+                Return SetError(1, 1, RuntimeException('Status code not initialized, did you execute the command before requesting the status code?'))
+            EndIf
+    
+            return $this.statusCode
+        EndFunc
+
+        Func setInputs($inputs)
+            $this.inputs = $inputs
+
+            return $this
+        EndFunc
+
+        Func initOutput($options)
+            $this.captureStreamsIndependently = __au3Console_array_assoc_key_exists($options, 'capture_stderr_separately') And __au3Console_array_assoc_get($options, 'capture_stderr_separately')
+            if (Not $this.captureStreamsIndependently) Then
+                $this.output = StreamOutput(FileOpen(_TempFile()))
+                ;$this.output = StreamOutput(fopen('php://memory', 'w', false));
+                if (__au3Console_array_assoc_isset($options, 'decorated')) Then
+                    $this.output.setDecorated($options['decorated']);
+                EndIf
+                if (__au3Console_array_assoc_isset($options, 'verbosity')) Then
+                    $this.output.setVerbosity($options['verbosity']);
+                EndIf
+            Else
+                $this.output = ConsoleOutput(
+                    __au3Console_array_assoc_isset($options, 'verbosity') ? __au3Console_array_assoc_get($options, 'verbosity') : ConsoleOutput::VERBOSITY_NORMAL,
+                    __au3Console_array_assoc_isset($options, 'decorated') ? __au3Console_array_assoc_get($options, 'decorated') : null
+                )
+
+                $errorOutput = StreamOutput(FileOpen(_TempFile()))
+                ;$errorOutput = StreamOutput(fopen('php://memory', 'w', false));
+                $errorOutput.setFormatter($this.output.getFormatter());
+                $errorOutput.setVerbosity($this.output.getVerbosity());
+                $errorOutput.setDecorated($this.output.isDecorated());
+
+                $this.output.stderr = $errorOutput
+
+                $this.output.stream = FileOpen(_TempFile())
+                ;$this.output.stream = fopen('php://memory', 'w', false)
+            EndIf
+        EndFunc
+
+        Func createStream($inputs)
+            Local $stream = FileOpen(_TempFile())
+            ;$stream = fopen('php://memory', 'r+', false);
+
+            Local $input
+            For $input In $inputs
+                FileWrite($stream, $input)
+            Next
+
+            FileSetPos($stream, 0, 0)
+            ;rewind($stream);
+
+            return $stream
+        EndFunc
+    #endregion TesterTrait
+
+    Func __construct($application)
+        $this.application = $application
+    EndFunc
+
+    Func run($input, $options = __au3Console_array())
+        $this.input = ArrayInput($input);
+        if __au3Console_array_assoc_isset(__au3Console_array_assoc_get($options, 'interactive')) Then
+            $this.input.setInteractive(__au3Console_array_assoc_get($options, 'interactive'))
+        EndIf
+
+        if $this.inputs Then
+            $this.input.setStream($this.createStream($this.inputs))
+        EndIf
+
+        $this.initOutput($options)
+
+        return $this.statusCode = $this.application.run($this.input, $this.output)
+    EndFunc
+EndClass
