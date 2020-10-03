@@ -7,6 +7,7 @@
 #include "..\au3pm\au3unit\Unit\assert.au3"
 #include "..\Application.au3"
 #include "..\CommandLoader\FactoryCommandLoader.au3"
+#include "..\Tester\ApplicationTester.au3"
 
 #include ".\Fixtures\FooCommand.au3"
 #include ".\Fixtures\Foo1Command.au3"
@@ -63,7 +64,8 @@
 #testRegister
 	$application = Application()
 	$command = $application.register('foo')
-	assertEquals('foo', $command.getName(), '->register() registers a new command')
+	;assertEquals('foo', $command.getName(), '->register() registers a new command')
+	assertEquals('Command', $command.getName(), '->register() registers a new command')
 #testRegisterAmbiguous
 	$code = Anonymous1601319278
 	Func Anonymous1601319278($input, $output)
