@@ -51,3 +51,10 @@ Func __au3Console_array_assoc_values($array)
     Next
     Return $a
 EndFunc
+
+Func __au3Console_array_assoc_in_array($value, $array)
+    For $i = 0 To UBound($array, 1) - 1 Step +1
+        If $array[$i][1] = $value Then Return True
+    Next
+    Return False
+EndFunc
