@@ -1,0 +1,296 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include <Array.au3>
+#include "..\helpers.au3"
+
+;extends Input
+Class ArrayInput
+    $__class = 'Input'
+    $parameters
+
+    #Region @class Input
+        $definition
+        $stream
+        $options = __au3Console_array()
+        $arguments = __au3Console_array()
+        $interactive = true
+
+        Func __construct2($definition = null)
+            If (null = $definition) Then
+                $this.definition = InputDefinition();
+            Else
+                $this.bind($definition);
+                $this.validate();
+            EndIf
+        EndFunc
+
+        Func bind($definition)
+            $this.arguments = __au3Console_array()
+            $this.options = __au3Console_array()
+            $this.definition = $definition;
+
+            $this.parse();
+        EndFunc
+
+        Func validate()
+            Local $definition = $this.definition;
+            Local $givenArguments = $this.arguments;
+
+            Local $tmp = __au3Console_array_assoc_keys($definition.getArguments())
+            Local $missingArguments[UBound($tmp, 1)]
+            Local $i = 0, $j = 0
+            Local $argument
+
+            For $i = 0 To UBound($tmp, 1) - 1 Step +1
+                $argument = $tmp[$i]
+                If (Not __au3Console_array_assoc_key_exists($givenArguments, $argument)) And $definition.getArgument($argument).isRequired() Then
+                    $missingArguments[$j] = $argument
+                    $j += 1
+                EndIf
+            Next
+
+            Redim $missingArguments[$j]
+
+            if (UBound($missingArguments, 1) > 0) Then
+                Return SetError(1, 1, RuntimeException(sprintf('Not enough arguments (missing: "%s").', implode(', ', $missingArguments))))
+            EndIf
+        EndFunc
+
+        Func isInteractive()
+            return $this.interactive;
+        EndFunc
+
+        Func setInteractive($interactive)
+            $this.interactive = $interactive
+        EndFunc
+
+        Func getArguments()
+            return __Application_ArrayMerge2($this.definition.getArgumentDefaults(), $this.arguments);
+        EndFunc
+
+        Func getArgument($name)
+            if (Not $this.definition.hasArgument($name)) Then
+                Return SetError(1,1, InvalidArgumentException(sprintf('The "%s" argument does not exist.', $name)))
+            EndIf
+
+            return __au3Console_array_assoc_isset($this.arguments, $name) ? __au3Console_array_assoc_get($this.arguments, $name) : $this.definition.getArgument($name).getDefault()
+        EndFunc
+
+        Func setArgument($name, $value)
+            if (Not $this.definition.hasArgument($name)) Then
+                Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" argument does not exist.', $name)))
+            EndIf
+
+            Local $arguments = $this.arguments
+            __au3Console_array_assoc_set($arguments, $name, $value)
+            $this.arguments = $arguments
+        EndFunc
+
+        Func hasArgument($name)
+            return $this.definition.hasArgument($name);
+        EndFunc
+
+        Func getOptions()
+            return __Application_ArrayMerge2($this.definition.getOptionDefaults(), $this.options)
+        EndFunc
+
+        Func getOption($name)
+            if (Not $this.definition.hasOption($name)) Then
+                Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" option does not exist.', $name)))
+            EndIf
+
+            return __au3Console_array_assoc_key_exists($this.options, $name) ? __au3Console_array_assoc_get($this.options, $name) : $this.definition.getOption($name).getDefault();
+        EndFunc
+
+        Func setOption($name, $value)
+            if (Not $this.definition.hasOption($name)) Then
+                Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" option does not exist.', $name)))
+            EndIf
+
+            Local $options = $this.options
+            __au3Console_array_assoc_set($options, $name, $value)
+            $this.options = $options
+        EndFunc
+
+        Func hasOption($name)
+            return $this.definition.hasOption($name)
+        EndFunc
+
+        Func escapeToken($token)
+            return StringRegExp($token, '{^[\w-]+$}', 0) ? $token : StringRegExpReplace($token, '([()%!^"<>&|])', '^$0'); escapeshellarg($token);
+        EndFunc
+
+        Func setStream($stream)
+            $this.stream = $stream
+        EndFunc
+
+        Func getStream()
+            return $this.stream
+        EndFunc
+    #EndRegion @class Input
+
+    Func __construct($parameters, $definition = null)
+        $this.parameters = $parameters
+
+        $this.__construct2($definition)
+    EndFunc
+
+    Func getFirstArgument()
+        Local $param, $value, $i, $parameters
+        $parameters = $this.parameters
+        For $i = 0 To UBound($parameters, 1) - 1 Step +1
+            $param = $parameters[$i][0]
+            $value = $parameters[$i][1]
+
+            If ($param And IsString($param) And '-' == StringLeft($param, 1)) Then
+                ContinueLoop
+            EndIf
+
+            Return $value
+        Next
+
+        Return null
+    EndFunc
+
+    Func hasParameterOption($values, $onlyParams = false)
+        Local $k, $v, $i
+        Local $parameters = $this.parameters
+        For $i = 0 To UBound($parameters, 1) - 1 Step +1
+            $k = $parameters[$i][0]
+            $v = $parameters[$i][1]
+
+            If Not IsInt($k) Then
+                $v = $k
+            EndIf
+
+            If $onlyParams And '--' == $v Then
+                Return False
+            EndIf
+
+            If __au3Console_array_assoc_in_array($v, $values) Then
+                Return True
+            EndIf
+        Next
+
+        Return false
+    EndFunc
+
+    Func getParameterOption($values, $default = false, $onlyParams = false)
+        Local $k, $v, $i
+        Local $parameters = $this.parameters
+        For $i = 0 To UBound($parameters, 1) - 1 Step +1
+            $k = $parameters[$i][0]
+            $v = $parameters[$i][1]
+
+            If $onlyParams And ('--' == $k Or (IsInt($k) And '--' == $v)) Then
+                Return $default
+            EndIf
+
+            If IsInt($k) Then
+                If __au3Console_array_assoc_in_array($v, $values) Then Return True
+            ElseIf __au3Console_array_assoc_in_array($k, $values) Then
+                Return $v
+            EndIf
+        Next
+
+        Return $default
+    EndFunc
+
+    Func __toString()
+        Local $params[0]
+        Local $param, $val, $i
+        Local $parameters = $this.parameters
+        For $i = 0 To UBound($parameters, 1) - 1 Step +1
+            $param = $parameters[$i][0]
+            $val = $parameters[$i][1]
+            If $param And IsString($param) And '-' == StringLeft($param, 1) Then
+                If IsArray($val) Then
+                    Local $v
+                    For $v In $val
+                        Redim $params[UBound($params, 1) + 1]
+                        $params[UBound($params, 1) - 1] = $param&(Not ('' = $v) ? '='&$this.escapeToken($v) : '')
+                    Next
+                Else
+                    Redim $params[UBound($params, 1) + 1]
+                    $params[UBound($params, 1) - 1] = $param&(Not ('' = $val) ? '='&$this.escapeToken($val) : '')
+                EndIf
+            Else
+                Redim $params[UBound($params, 1) + 1]
+                If IsArray($val) Then
+                    Local $val2[UBound($val, 1)]
+                    Local $j
+                    For $j = 0 To UBound($val, 1) - 1 Step +1
+                        $val2[$j] = $this.escapeToken($val[$j])
+                    Next
+                    $params[UBound($params, 1) - 1] = _ArrayToString($val2, ' ')
+                Else
+                    $params[UBound($params, 1) - 1] = $this.escapeToken($val)
+                EndIf
+                $params[UBound($params, 1) - 1] = IsArray($val) ? _ArrayToString(, ' ') : $this.escapeToken($val)
+            EndIf
+        Next
+
+        return _ArrayToString($params, ' ')
+    EndFunc
+
+    Func parse()
+        Local $key, $value, $i
+        Local $parameters = $this.parameters
+        For $i = 0 To UBound($parameters, 1) - 1 Step +1
+            $key = $parameters[$i][0]
+            $value = $parameters[$i][1]
+            If '--' == $key Then
+                Return
+            EndIf
+            If 1 = StringInStr($key, '--') Then
+                $this.addLongOption(StringMid($key, 3), $value)
+            ElseIf 1 = StringInStr($key, '-') Then
+                $this.addLongOption(StringMid($key, 2), $value)
+            Else
+                $this.addLongOption($key, $value)
+            EndIf
+        Next
+    EndFunc
+
+    Func addShortOption($shortcut, $value)
+        If (Not $this.definition.hasShortcut($shortcut)) Then
+            Return SetError(1, 1, InvalidOptionException(StringFormat('The "-%s" option does not exist.', $shortcut)))
+        EndIf
+
+        $this.addLongOption($this.definition.getOptionForShortcut($shortcut).getName(), $value);
+    EndFunc
+
+    Func addLongOption($name, $value)
+        if (Not $this.definition.hasOption($name)) Then
+            Return SetError(1, 1, InvalidOptionException(StringFormat('The "--%s" option does not exist.', $name)))
+        EndIf
+
+        Local $option = $this.definition.getOption($name)
+
+        if (null = $value) Then
+            if ($option.isValueRequired()) Then
+                Return SetError(1, 1, InvalidOptionException(StringFormat('The "--%s" option requires a value.', $name)))
+            EndIf
+
+            if (Not $option.isValueOptional()) Then
+                $value = true;
+            EndIf
+        EndIf
+
+        $options = $this.options
+        __au3Console_array_assoc_set($options, $name, $value)
+        $this.options = $options
+    EndFunc
+
+    Func addArgument($name, $value)
+        if (Not $this.definition.hasArgument($name)) Then
+            Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" argument does not exist.', $name)))
+        EndIf
+
+        Local $arguments = $this.arguments
+        __au3Console_array_assoc_set($arguments, $name, $value)
+        $this.arguments = $arguments
+    EndFunc
+EndClass
