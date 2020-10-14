@@ -2,9 +2,11 @@
 
 #include-once
 
+#include <File.au3>
 #include <WinAPIFiles.au3>
 #include "..\helpers.au3"
 #include "..\Input\ArrayInput.au3"
+#include "..\Output\StreamOutput.au3"
 
 Class ApplicationTester
     $__class = 'ApplicationTester'
