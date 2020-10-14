@@ -4,6 +4,7 @@
 
 #include <WinAPIFiles.au3>
 #include "..\helpers.au3"
+#include "..\Input\ArrayInput.au3"
 
 Class ApplicationTester
     $__class = 'ApplicationTester'
@@ -126,7 +127,7 @@ Class ApplicationTester
 
     Func run($input, $options = __au3Console_array())
         $this.input = ArrayInput($input);
-        if __au3Console_array_assoc_isset(__au3Console_array_assoc_get($options, 'interactive')) Then
+        if __au3Console_array_assoc_isset($options, 'interactive') Then
             $this.input.setInteractive(__au3Console_array_assoc_get($options, 'interactive'))
         EndIf
 
