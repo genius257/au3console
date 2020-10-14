@@ -1,0 +1,128 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include "..\helpers.au3"
+#include "..\Application.au3"
+#include "InputDefinition.au3"
+
+Class Input
+    $definition
+    $stream
+    $options = __au3Console_array()
+    $arguments = __au3Console_array()
+    $interactive = true
+
+    Func __construct($definition = null)
+        If (null = $definition) Then
+            $this.definition = InputDefinition();
+        Else
+            $this.bind($definition);
+            $this.validate();
+        EndIf
+    EndFunc
+
+    Func bind($definition)
+        $this.arguments = __au3Console_array()
+        $this.options = __au3Console_array()
+        $this.definition = $definition;
+
+        $this.parse();
+    EndFunc
+
+    Func validate()
+        Local $definition = $this.definition;
+        Local $givenArguments = $this.arguments;
+
+        Local $tmp = __au3Console_array_assoc_keys($definition.getArguments())
+        Local $missingArguments[UBound($tmp, 1)]
+        Local $i = 0, $j = 0
+        Local $argument
+
+        For $i = 0 To UBound($tmp, 1) - 1 Step +1
+            $argument = $tmp[$i]
+            If (Not __au3Console_array_assoc_key_exists($givenArguments, $argument)) And $definition.getArgument($argument).isRequired() Then
+                $missingArguments[$j] = $argument
+                $j += 1
+            EndIf
+        Next
+
+        Redim $missingArguments[$j]
+
+        if (UBound($missingArguments, 1) > 0) Then
+            Return SetError(1, 1, RuntimeException(sprintf('Not enough arguments (missing: "%s").', implode(', ', $missingArguments))))
+        EndIf
+    EndFunc
+
+    Func isInteractive()
+        return $this.interactive;
+    EndFunc
+
+    Func setInteractive($interactive)
+        $this.interactive = $interactive
+    EndFunc
+
+    Func getArguments()
+        return __Application_ArrayMerge2($this.definition.getArgumentDefaults(), $this.arguments);
+    EndFunc
+
+    Func getArgument($name)
+        if (Not $this.definition.hasArgument($name)) Then
+            Return SetError(1,1, InvalidArgumentException(sprintf('The "%s" argument does not exist.', $name)))
+        EndIf
+
+        return __au3Console_array_assoc_isset($this.arguments, $name) ? __au3Console_array_assoc_get($this.arguments, $name) : $this.definition.getArgument($name).getDefault()
+    EndFunc
+
+    Func setArgument($name, $value)
+        if (Not $this.definition.hasArgument($name)) Then
+            Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" argument does not exist.', $name)))
+        EndIf
+
+        Local $arguments = $this.arguments
+        __au3Console_array_assoc_set($arguments, $name, $value)
+        $this.arguments = $arguments
+    EndFunc
+
+    Func hasArgument($name)
+        return $this.definition.hasArgument($name);
+    EndFunc
+
+    Func getOptions()
+        return __Application_ArrayMerge2($this.definition.getOptionDefaults(), $this.options)
+    EndFunc
+
+    Func getOption($name)
+        if (Not $this.definition.hasOption($name)) Then
+            Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" option does not exist.', $name)))
+        EndIf
+
+        return __au3Console_array_assoc_key_exists($this.options, $name) ? __au3Console_array_assoc_get($this.options, $name) : $this.definition.getOption($name).getDefault();
+    EndFunc
+
+    Func setOption($name, $value)
+        if (Not $this.definition.hasOption($name)) Then
+            Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" option does not exist.', $name)))
+        EndIf
+
+        Local $options = $this.options
+        __au3Console_array_assoc_set($options, $name, $value)
+        $this.options = $options
+    EndFunc
+
+    Func hasOption($name)
+        return $this.definition.hasOption($name)
+    EndFunc
+
+    Func escapeToken($token)
+        return StringRegExp($token, '{^[\w-]+$}', 0) ? $token : StringRegExpReplace($token, '([()%!^"<>&|])', '^$0'); escapeshellarg($token);
+    EndFunc
+
+    Func setStream($stream)
+        $this.stream = $stream
+    EndFunc
+
+    Func getStream()
+        return $this.stream
+    EndFunc
+EndClass
