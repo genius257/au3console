@@ -1,0 +1,99 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+Global Const $__au3Console_Output_VERBOSITY_QUIET = 16
+Global Const $__au3Console_Output_VERBOSITY_NORMAL = 32
+Global Const $__au3Console_Output_VERBOSITY_VERBOSE = 64
+Global Const $__au3Console_Output_VERBOSITY_VERY_VERBOSE = 128
+Global Const $__au3Console_Output_VERBOSITY_DEBUG = 256
+
+Global Const $__au3Console_Output_OUTPUT_NORMAL = 1
+Global Const $__au3Console_Output_OUTPUT_RAW = 2
+Global Const $__au3Console_Output_OUTPUT_PLAIN = 4
+
+Class Output
+    $__class = 'Output'
+    $verbosity
+    $formatter
+
+    Func __construct($verbosity = $__au3Console_Output_VERBOSITY_NORMAL, $decorated = false, $formatter = null)
+        $this.verbosity = null = $verbosity ? $__au3Console_Output_VERBOSITY_NORMAL : $verbosity;
+        $this.formatter = $formatter ? $formatter : OutputFormatter()
+        $this.formatter.setDecorated($decorated)
+    EndFunc
+
+    Func setFormatter($formatter)
+        $this.formatter = $formatter
+    EndFunc
+
+    Func getFormatter()
+        Return $this.formatter
+    EndFunc
+
+    Func setDecorated($decorated)
+        $this.formatter.setDecorated($decorated)
+    EndFunc
+
+    Func isDecorated()
+        return $this.formatter.isDecorated()
+    EndFunc
+
+    Func setVerbosity($level)
+        $this.verbosity = $level
+    EndFunc
+
+    Func getVerbosity()
+        Return $this.verbosity
+    EndFunc
+
+    Func isQuiet()
+        Return $__au3Console_Output_VERBOSITY_QUIET = $this.verbosity
+    EndFunc
+
+    Func isVerbose()
+        return $__au3Console_Output_VERBOSITY_VERBOSE <= $this.verbosity
+    EndFunc
+
+    Func isVeryVerbose()
+        return $__au3Console_Output_VERBOSITY_VERY_VERBOSE <= $this.verbosity
+    EndFunc
+
+    Func isDebug()
+        return $__au3Console_Output_VERBOSITY_DEBUG <= $this.verbosity
+    EndFunc
+
+    Func writeln($messages, $options = $__au3Console_Output_OUTPUT_NORMAL)
+        $this.write($messages, true, $options);
+    EndFunc
+
+    Func write($messages, $newline = false, $options = $__au3Console_Output_OUTPUT_NORMAL)
+        if (Not IsArray($messages)) Then
+            $messages = [$messages];
+        EndIf
+
+        $types = BitOR($__au3Console_Output_OUTPUT_NORMAL, $__au3Console_Output_OUTPUT_RAW, $__au3Console_Output_OUTPUT_PLAIN)
+        $type = $types And $options ? $options : $__au3Console_Output_OUTPUT_NORMAL;
+
+        $verbosities = BitOR($__au3Console_Output_VERBOSITY_QUIET, $__au3Console_Output_VERBOSITY_NORMAL, $__au3Console_Output_VERBOSITY_VERBOSE, $__au3Console_Output_VERBOSITY_VERY_VERBOSE, $__au3Console_Output_VERBOSITY_DEBUG)
+        $verbosity = $verbosities And $options ? $options : $__au3Console_Output_VERBOSITY_NORMAL
+
+        if ($verbosity > $this.getVerbosity()) Then
+            return;
+        EndIf
+
+            For $message In $messages
+                Switch ($type)
+                    Case $__au3Console_Output_OUTPUT_NORMAL
+                        $message = $this.formatter.format($message)
+                    Case $__au3Console_Output_OUTPUT_RAW
+                        ;
+                    Case $__au3Console_Output_OUTPUT_PLAIN
+                        $message = StringRegExpReplace($this.formatter.format($message), "(?is)<(\w+)\b.*?>(.*?)</\1>", "$1")
+                        ;$message = strip_tags($this.formatter.format($message))
+                EndSwitch
+
+                this.dowrite($message, $newline)
+            Next
+    EndFunc
+EndClass
