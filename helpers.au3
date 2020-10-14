@@ -58,3 +58,12 @@ Func __au3Console_array_assoc_in_array($value, $array)
     Next
     Return False
 EndFunc
+
+Func __au3Console_array_assoc_keys($array)
+    Local $a[UBound($array, 1)]
+    Local $i
+    For $i = 0 To UBound($array, 1) - 1 Step +1
+        $a[$i] = $array[$i][0]
+    Next
+    Return $a
+EndFunc
