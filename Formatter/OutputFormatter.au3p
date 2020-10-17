@@ -1,0 +1,124 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include <String.au3>
+#include "..\helpers.au3"
+
+Class OutputFormatter
+    $decorated
+    $styles = __au3Console_array()
+    $styleStack
+
+    Func escape($text)
+        $text = StringRegExpReplace($text, '([^\\]?)<', '$1\<', $text);
+
+        Return $this.escapeTrailingBackslash($text);
+    EndFunc
+
+    Func escapeTrailingBackslash($text)
+        if ('\' === StringRight($text, 1)) Then
+            Local $len = StringLen($text);
+            $text = StringTrimRight($text, '\')
+            $text = StringReplace(Chr(0), '', $text);
+            $text &= _StringRepeat(chr(0), $len - StringLen($text))
+        EndIf
+
+        return $text
+    EndFunc
+
+    ;TODO: $tyles should default to an empty assoc array.
+    Func __construct($decorated = false, $styles = __au3Console_array())
+        $this.decorated = $decorated;
+
+        $this.setStyle('error', OutputFormatterStyle('white', 'red'));
+        $this.setStyle('info', OutputFormatterStyle('green'));
+        $this.setStyle('comment', OutputFormatterStyle('yellow'));
+        $this.setStyle('question', OutputFormatterStyle('black', 'cyan'));
+
+        Local $name, $style, $i
+        For $i = 0 To UBound($styles, 1) - 1 Step +1
+            $name = $styles[$i][0]
+            $style = $styles[$i][1]
+            $this.setStyle($name, $style)
+        Next
+
+        $this.styleStack = OutputFormatterStyleStack();
+    EndFunc
+
+    Func setDecorated($decorated)
+        $this.decorated = $decorated
+    EndFunc
+
+    Func isDecorated()
+        return $this.decorated
+    EndFunc
+
+    Func setStyle($name, $style)
+        Local $styles = $this.styles
+        __au3Console_array_assoc_set($styles, StringLower($name), $style)
+        $this.styles = $styles
+    EndFunc
+
+    Func hasStyle($name)
+        return __au3Console_array_assoc_isset($this.styles, StringLower($name))
+    EndFunc
+
+    Func getStyle()
+        if (Not $this.hasStyle($name)) Then
+            return SetError(1, 1, InvalidArgumentException(StringFormat('Undefined style: "%s".', $name)))
+        EndIf
+
+        return __au3Console_array_assoc_get($this.styles, StringLower($name))
+    EndFunc
+
+    Func format($message)
+        return $this.formatAndWrap($message, 0)
+    EndFunc
+
+    Func formatAndWrap($message, $width)
+        $offset = 1
+        $output = ''
+        $tagRegex = '[a-z][^<>]*+'
+        $currentLineLength = 0
+        preg_match_all(StringReplace("(?ix)<(($tagRegex) | /($tagRegex)?)>", "$tagRegex", $tagRegex), $message, $matches, \PREG_OFFSET_CAPTURE);
+        foreach ($matches[0] as $i => $match) {
+            $pos = $match[1];
+            $text = $match[0];
+
+            if (Not 1 = $pos And '\\' == $message[$pos - 1]) Then
+                ContinueLoop
+            EndIf
+
+            ;; add the text up to the next tag
+            $output &= $this.applyCurrentStyle(StringMid($message, $offset, $pos - $offset), $output, $width, $currentLineLength);
+            $offset = $pos + StringLen($text);
+
+            ;; opening tag?
+            if ($open = '/' != $text[1]) {
+                $tag = $matches[1][$i][0];
+            } else {
+                $tag = isset($matches[3][$i][0]) ? $matches[3][$i][0] : '';
+            }
+
+            If (Not $open And Not $tag) Then
+                ;; </>
+                $this.styleStack.pop();
+            ElseIf (null === $style = $this->createStyleFromString($tag)) Then
+                $output &= $this.applyCurrentStyle($text, $output, $width, $currentLineLength);
+            ElseIf ($open) Then
+                $this->styleStack->push($style)
+            Else
+                $this->styleStack->pop($style);
+            EndIf
+        }
+
+        $output &= $this.applyCurrentStyle(substr($message, $offset), $output, $width, $currentLineLength);
+
+        if (Not (0 = StringInStr($output, Chr(0)))) Then
+            return strtr($output, ["\0" => '\\', '\\<' => '<']);
+        EndIf
+
+        return StringReplace($output, '\\<', '<')
+    EndFunc
+EndClass
