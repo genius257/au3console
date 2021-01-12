@@ -9,6 +9,11 @@ Func __au3Console_array($v1 = Null, $v2 = Null, $v3 = Null, $v4 = Null, $v5 = Nu
     Return $a
 EndFunc
 
+Func __au3Console_assoc_array()
+    Local $a[0][2]
+    Return $a
+EndFunc
+
 Func __au3Console_array_assoc_get($array, $key)
     Local $i
     For $i = 0 To UBound($array, 1) - 1 Step +1
