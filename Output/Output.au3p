@@ -2,6 +2,8 @@
 
 #include-once
 
+#include "..\Formatter\OutputFormatter.au3"
+
 Global Const $__au3Console_Output_VERBOSITY_QUIET = 16
 Global Const $__au3Console_Output_VERBOSITY_NORMAL = 32
 Global Const $__au3Console_Output_VERBOSITY_VERBOSE = 64
