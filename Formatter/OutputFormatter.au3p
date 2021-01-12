@@ -3,6 +3,7 @@
 #include-once
 
 #include <String.au3>
+#include "..\au3pm\StringRegExpSplit\StringRegExpSplit.au3"
 #include "..\helpers.au3"
 
 Class OutputFormatter
@@ -27,8 +28,7 @@ Class OutputFormatter
         return $text
     EndFunc
 
-    ;TODO: $tyles should default to an empty assoc array.
-    Func __construct($decorated = false, $styles = __au3Console_array())
+    Func __construct($decorated = false, $styles = __au3Console_assoc_array())
         $this.decorated = $decorated;
 
         $this.setStyle('error', OutputFormatterStyle('white', 'red'));
@@ -77,11 +77,69 @@ Class OutputFormatter
     EndFunc
 
     Func formatAndWrap($message, $width)
-        $offset = 1
-        $output = ''
-        $tagRegex = '[a-z][^<>]*+'
-        $currentLineLength = 0
-        preg_match_all(StringReplace("(?ix)<(($tagRegex) | /($tagRegex)?)>", "$tagRegex", $tagRegex), $message, $matches, \PREG_OFFSET_CAPTURE);
+        Local $offset = 1
+        Local $output = ''
+        Local $tagRegex = '[a-z][^<>]*+'
+        Local $currentLineLength = 0
+        #Region preg_match_all
+        Local $_matches = StringRegExp($message, StringReplace("(?ix)<(($tagRegex) | /($tagRegex)?)>", "$tagRegex", $tagRegex), 4)
+        Local $matches[4][UBound($_matches)][2]
+        Local $_i = 0
+        Local $_offset = 1
+        While 1
+            $_matches = StringRegExp($message, StringReplace("(?ix)<(($tagRegex) | /($tagRegex)?)>", "$tagRegex", $tagRegex), 2, $_offset)
+            If @error Then ExitLoop
+            $_offset = @extended
+            $matches[0][$_i][0] = $_matches[0]
+            $matches[0][$_i][1] = $_offset - StringLen($_matches[0])
+            $matches[1][$_i][0] = $_matches[1]
+            $matches[1][$_i][1] = $matches[0][$_i][1] + 1
+            $matches[2][$_i][0] = StringLeft($_matches[1], 1) = "/" ? Null : $_matches[2]
+            $matches[2][$_i][1] = StringLeft($_matches[1], 1) = "/" ? -1 : $matches[1][$_i][1]
+            $matches[3][$_i][0] = StringLeft($_matches[1], 1) = "/" ? $_matches[2] : Null
+            $matches[3][$_i][1] = StringLeft($_matches[1], 1) = "/" ? $matches[1][$_i][1] + 1 : -1
+            $_i += 1
+        WEnd
+        #EndRegion preg_match_all
+        ;preg_match_all(StringReplace("(?ix)<(($tagRegex) | /($tagRegex)?)>", "$tagRegex", $tagRegex), $message, $matches, \PREG_OFFSET_CAPTURE);
+        Local $i, $match
+        For $i = 0 To UBound($matches, 2) - 1 Step +1
+            ;$match = $matches[0][$i]
+            Local $pos = $matches[0][$i][1]
+            Local $text = $matches[0][$i][0]
+
+            #cs
+            ; will never be true, as it is comparing one char is equal to two chars
+            if (Not 1 = $pos And '\\' == StringMid($message, $pos - 1, 1)) Then
+                ContinueLoop
+            EndIf
+            #ce
+
+            ;; add the text up to the next tag
+            $output &= $this.applyCurrentStyle(StringMid($message, $offset, $pos - $offset), $output, $width, $currentLineLength);
+            $offset = $pos + StringLen($text);
+
+            ;; opening tag?
+            Local $open = Not ('/' = StringMid($text, 2, 1))
+            If ($open) Then
+                $tag = $matches[1][$i][0];
+            Else
+                $tag = ($matches[3][$i][0] = Null) ? $matches[3][$i][0] : '';
+            EndIf
+
+            Local $style = $this.createStyleFromString($tag)
+            If ((Not $open) And (Not $tag)) Then
+                ;; </>
+                $this.styleStack.pop();
+            ElseIf (Null = $style) Then
+                $output &= $this.applyCurrentStyle($text, $output, $width, $currentLineLength);
+            ElseIf ($open) Then
+                $this.styleStack.push($style)
+            Else
+                $this.styleStack.pop($style);
+            EndIf
+        Next
+        #cs
         foreach ($matches[0] as $i => $match) {
             $pos = $match[1];
             $text = $match[0];
@@ -104,21 +162,101 @@ Class OutputFormatter
             If (Not $open And Not $tag) Then
                 ;; </>
                 $this.styleStack.pop();
-            ElseIf (null === $style = $this->createStyleFromString($tag)) Then
+            ElseIf (null === $style = $this.createStyleFromString($tag)) Then
                 $output &= $this.applyCurrentStyle($text, $output, $width, $currentLineLength);
             ElseIf ($open) Then
-                $this->styleStack->push($style)
+                $this.styleStack.push($style)
             Else
-                $this->styleStack->pop($style);
+                $this.styleStack.pop($style);
             EndIf
         }
+        #ce
 
-        $output &= $this.applyCurrentStyle(substr($message, $offset), $output, $width, $currentLineLength);
+        $output &= $this.applyCurrentStyle(StringMid($message, $offset), $output, $width, $currentLineLength);
 
         if (Not (0 = StringInStr($output, Chr(0)))) Then
             return strtr($output, ["\0" => '\\', '\\<' => '<']);
         EndIf
 
         return StringReplace($output, '\\<', '<')
+    EndFunc
+
+    Func getStyleStack()
+        Return $this.styleStack
+    EndFunc
+
+    Func createStyleFromString($string)
+        if (__au3Console_array_assoc_isset($this.styles, $string)) {
+            return __au3Console_array_assoc_get($this.styles, $string);
+        }
+
+        if (!preg_match_all('/([^=]+)=([^;]+)(;|$)/', $string, $matches, \PREG_SET_ORDER)) {
+            return null;
+        }
+
+        $style = new OutputFormatterStyle();
+        foreach ($matches as $match) {
+            array_shift($match);
+            $match[0] = strtolower($match[0]);
+
+            if ('fg' == $match[0]) {
+                $style->setForeground(strtolower($match[1]));
+            } elseif ('bg' == $match[0]) {
+                $style->setBackground(strtolower($match[1]));
+            } elseif ('href' === $match[0]) {
+                $style->setHref($match[1]);
+            } elseif ('options' === $match[0]) {
+                preg_match_all('([^,;]+)', strtolower($match[1]), $options);
+                $options = array_shift($options);
+                foreach ($options as $option) {
+                    $style->setOption($option);
+                }
+            } else {
+                return null;
+            }
+        }
+
+        return $style;
+    EndFunc
+
+    ;WARNING: $currentLineLength shoykd be ByRef
+    Func applyCurrentStyle($text, $current, $width, $currentLineLength)
+        If "" = $text Then Return ""
+
+        If Not $width Then Return $this.isDecorated() ? $this.styleStack.getCurrent().apply($text) : $text
+
+        If (Not $currentLineLength) And (Not ("" = $current)) Then $text = StringTrimLeft($text)
+
+        If $currentLineLength Then
+            Local $i = $width - $currentLineLength
+            Local $prefix = StringMid($text, 1, $i)&@CRLF
+            $text = StringMid($text, $i)
+        Else
+            Local $prefix = ""
+        EndIf
+
+        Local $matches = StringRegExp($text, "(\n)$", 1)
+        $text = StringRegExpReplace($prefix, "([^\n]{"&$width&"})\ *", "\$1\n")
+        $text = StringRegExpReplace($text, "[\n]*$", "")&(Execute("$matches[0]") ? Execute("$matches[0]") : "")
+
+        If (Not $currentLineLength) And (Not ("" = $current)) And @LF = StringRight($current, 1) Then $text = @CRLF&$text
+
+        Local $lines = StringRegExpSplit($text, "[\n]")
+
+        Local $line
+        For $line In $lines
+            $currentLineLength += StringLen($line)
+            if ($width <= $currentLineLength) Then $currentLineLength = 0
+        Next
+
+        If $this.isDecorated() Then
+            Local $i
+            For $i = 0 To UBound($lines) - 1 Step +1
+                $line = $lines[$i]
+                $lines[$i] = $this.styleStack.getCurrent().apply($line)
+            Next
+        EndIf
+
+        Return _ArrayToString($lines, @CRLF)
     EndFunc
 EndClass
