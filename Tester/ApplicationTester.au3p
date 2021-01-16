@@ -127,7 +127,7 @@ Class ApplicationTester
         $this.application = $application
     EndFunc
 
-    Func run($input, $options = __au3Console_array())
+    Func run($input, $options = __au3Console_assoc_array())
         $this.input = ArrayInput($input);
         if __au3Console_array_assoc_isset($options, 'interactive') Then
             $this.input.setInteractive(__au3Console_array_assoc_get($options, 'interactive'))
