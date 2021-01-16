@@ -15,7 +15,7 @@ Class Terminal
             Return Number(StringRegExpReplace($width, "(^[ \t\n\r\0\x0B]|[ \t\n\r\0\x0B]$)", ""), 2)
         EndIf
     
-        If Null = $this.witdh Then
+        If Null = $this.width Then
             $this.initDimensions()
         EndIf
     
