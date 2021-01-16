@@ -1,0 +1,187 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include <Array.au3>
+#include <Math.au3>
+#include ".\helpers.au3"
+
+Global Const $_au3Console_Color_COLORS = [ _
+    ['black', 0], _
+    ['red', 1], _
+    ['green', 2], _
+    ['yellow', 3], _
+    ['blue', 4], _
+    ['magenta', 5], _
+    ['cyan', 6], _
+    ['white', 7], _
+    ['default', 9] _
+]
+
+Global Const $_au3Console_Color_AVAILABLE_OPTIONS = __au3Console_color_makeAvailableOptions()
+
+Func __au3Console_color_makeAvailableOptions()
+    Local $options = [ _
+        ['bold',Null], _
+        ['underscore',Null], _
+        ['blink',Null], _
+        ['reverse',Null], _
+        ['conceal',Null] _
+    ]
+    Local $_aTmp = [['set', 1], ['unset', 22]]
+    $options[0][1] = $_aTmp
+    Local $_aTmp = [['set', 4], ['unset', 24]]
+    $options[1][1] = $_aTmp
+    Local $_aTmp = [['set', 5], ['unset', 25]]
+    $options[2][1] = $_aTmp
+    Local $_aTmp = [['set', 7], ['unset', 27]]
+    $options[3][1] = $_aTmp
+    Local $_aTmp = [['set', 8], ['unset', 28]]
+    $options[4][1] = $_aTmp
+    Return $options
+EndFunc
+
+Class Color
+    $foreground;
+    $background;
+    $options = __au3Console_array()
+
+    Func __construct($foreground = '', $background = '', $options = __au3Console_array())
+        $this.foreground = $this.parseColor($foreground);
+        $this.background = $this.parseColor($background);
+
+        For $option In $options
+            if (Not __au3Console_array_assoc_isset($_au3Console_Color_AVAILABLE_OPTIONS, $option)) Then
+                Local $keys = __au3Console_array_assoc_keys($_au3Console_Color_AVAILABLE_OPTIONS)
+                Return SetError(1, 1, InvalidArgumentException(StringFormat('Invalid option specified: "%s". Expected one of (%s).', $option, _ArrayToString($keys, ','))))
+            EndIf
+
+            Local $_options = $this.options
+            __au3Console_array_assoc_set($_options, $option, __au3Console_array_assoc_get($_au3Console_Color_AVAILABLE_OPTIONS, $option))
+            $this.options = $_options
+        Next
+    EndFunc
+
+    Func apply($text)
+        Return $this.set()&$text&$this.unset()
+    EndFunc
+
+    Func set()
+        Local $setCodes[0];
+        If Not ('' = $this.foreground) Then
+            Redim $setCodes[UBound($setCodes) + 1]
+            $setCodes[UBound($setCodes) - 1] = '3'&$this.foreground;
+        EndIf
+        if Not ('' = $this.background) Then
+            Redim $setCodes[UBound($setCodes) + 1]
+            $setCodes[UBound($setCodes) - 1] = '4'&$this.background;
+        EndIf
+        Local $i
+        Local $options = $this.options
+        For $i = 0 To UBound($options) - 1 Step +1
+            Redim $setCodes[UBound($setCodes) + 1]
+            $setCodes[UBound($setCodes) - 1] = __au3Console_array_assoc_get($options[$i][1], 'set')
+        Next
+        #cs
+        foreach ($this->options as $option) {
+            $setCodes[] = $option['set'];
+        }
+        #ce
+        if (0 = UBound($setCodes)) Then
+            return '';
+        EndIf
+
+        return StringFormat("\033[%sm", _ArrayToString($setCodes, ';'));
+    EndFunc
+
+    Func unset()
+        Local $unsetCodes[0];
+        if Not ('' = $this.foreground) Then
+            Redim $unsetCodes[UBound($unsetCodes) + 1]
+            $unsetCodes[UBound($unsetCodes) - 1] = 39
+        EndIf
+        if Not ('' = $this.background) Then
+            Redim $unsetCodes[UBound($unsetCodes) + 1]
+            $unsetCodes[UBound($unsetCodes) - 1] = 49
+        EndIf
+        Local $option
+        For $option In $this.options
+            Redim $unsetCodes[UBound($unsetCodes) + 1]
+            $unsetCodes[UBound($unsetCodes) - 1] = __au3Console_array_assoc_get($option, 'unset')
+        Next
+        #cs
+        foreach ($this->options as $option) {
+            $unsetCodes[] = $option['unset'];
+        }
+        #ce
+        if (0 = UBound($unsetCodes)) Then
+            return '';
+        EndIf
+
+        return StringFormat("\033[%sm", _ArrayToString($unsetCodes, ';'));
+    EndFunc
+
+    Func parseColor($color)
+        if ('' = $color) Then
+            return '';
+        EndIf
+
+        if ('#' = StringMid($color, 1, 1)) Then
+            $color = StringMid($color, 2);
+
+            if (3 = StringLen($color)) Then
+                $color = StringMid($color, 1, 1)&StringMid($color, 1, 1)&StringMid($color, 2, 1)&StringMid($color, 2, 1)&StringMid($color, 3, 1)&StringMid($color, 3, 1);
+            EndIf
+
+            if Not (6 = StringLen($color)) Then
+                return SetError(1, 1, InvalidArgumentException(StringFormat('Invalid "%s" color.', $color)));
+            EndIf
+
+            return $this.convertHexColorToAnsi(Dec($color));
+        EndIf
+
+        if (Not __au3Console_array_assoc_isset($_au3Console_Color_COLORS, $color)) Then
+            Local $keys = __au3Console_array_assoc_keys($_au3Console_Color_COLORS)
+            Return SetError(1, 1, InvalidArgumentException(StringFormat('Invalid "%s" color; expected one of (%s).', $color, _ArrayToString($keys, ', '))))
+        EndIf
+
+        return String(__au3Console_array_assoc_get($_au3Console_Color_COLORS, $color))
+    EndFunc
+
+    Func convertHexColorToAnsi($color)
+        Local $r = BitAND(BitShift($color, 16), 255);
+        Local $g = BitAND(BitShift($color, 8), 255);
+        Local $b = BitAND($color, 255);
+
+        ;; see https://github.com/termstandard/colors/ for more information about true color support
+        #cs
+        if ('truecolor' !== getenv('COLORTERM')) {
+            return (string) $this->degradeHexColorToAnsi($r, $g, $b);
+        }
+        #ce
+
+        return StringFormat('8;2;%d;%d;%d', $r, $g, $b);
+    EndFunc
+
+    Func degradeHexColorToAnsi($r, $g, $b)
+        if (0 = Round($this.getSaturation($r, $g, $b) / 50)) Then
+            return 0;
+        EndIf
+
+        return BitOR(BitShift(round($b / 255), 2*-1), BitShift(Round($g / 255), 1*-1), round($r / 255))
+    EndFunc
+
+    Func getSaturation($r, $g, $b)
+        $r = $r / 255;
+        $g = $g / 255;
+        $b = $b / 255;
+        Local $v = _Max($r, $g, $b);
+
+        Local $diff = $v - _Min($r, $g, $b)
+        if (0 = $diff) Then
+            return 0;
+        EndIf
+
+        return Int($diff * 100 / $v);
+    EndFunc
+EndClass
