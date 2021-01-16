@@ -1,0 +1,3 @@
+Global Const $__au3Console_ConsoleCommandEvent_RETURN_CODE_DISABLED = 113
+
+;TODO: implement ConsoleCommandEvent class
