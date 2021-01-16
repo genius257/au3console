@@ -1,0 +1,11 @@
+Global Const $__au3Console_ConsoleEvent_COMMAND = 'console.command'
+Global Const $__au3Console_ConsoleEvent_SIGNAL = 'console.signal'
+Global Const $__au3Console_ConsoleEvent_TERMINATE = 'console.terminate'
+Global Const $__au3Console_ConsoleEvent_ERROR = 'console.error'
+;TODO: replace strings with the actual class ref's
+Global Const $__au3Console_ConsoleEvent_ALIASES = [ _
+    ['ConsoleCommandEvent::class', $__au3Console_ConsoleEvent_COMMAND], _
+    ['ConsoleErrorEvent::class', $__au3Console_ConsoleEvent_ERROR], _
+    ['ConsoleSignalEvent::class', $__au3Console_ConsoleEvent_SIGNAL], _
+    ['ConsoleTerminateEvent::class', $__au3Console_ConsoleEvent_TERMINATE] _
+]
