@@ -19,7 +19,7 @@ Class Command
     $description = ''
     $fullDefinition
     $ignoreValidationErrors = false
-    $code
+    $code = Null
     $synopsis = __Application_Array()
     $usages = __Application_Array()
     $helperSet
@@ -27,11 +27,9 @@ Class Command
     Func __construct($name = Null)
         $this.definition = InputDefinition();
 
-        $name = $this.getDefaultName()
-
-        If (Not Null = $name) Then
+        If (Not (Null = $name)) Then
             $this.setName($name)
-        ElseIf (Not Null = $this.getDefaultName()) Then
+        ElseIf (Not (Null = $this.getDefaultName())) Then
             $this.setName(this.getDefaultName())
         EndIf
 
@@ -142,8 +140,8 @@ Class Command
         $input.validate();
 
         Local $statusCode
-        if ($this.code) Then
-            $statusCode = ($this.code)($input, $output);
+        if Not (Null = $this.code) Then
+            $statusCode = Call($this.code, $input, $output);
         else
             $statusCode = $this.execute($input, $output);
 

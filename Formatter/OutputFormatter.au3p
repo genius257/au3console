@@ -3,8 +3,10 @@
 #include-once
 
 #include <String.au3>
-#include "..\au3pm\StringRegExpSplit\StringRegExpSplit.au3"
+;#include "..\au3pm\StringRegExpSplit\StringRegExpSplit.au3"
 #include "..\helpers.au3"
+#include ".\OutputFormatterStyle.au3"
+#include ".\OutputFormatterStyleStack.au3"
 
 Class OutputFormatter
     $decorated
@@ -186,40 +188,61 @@ Class OutputFormatter
     EndFunc
 
     Func createStyleFromString($string)
-        if (__au3Console_array_assoc_isset($this.styles, $string)) {
+        If (__au3Console_array_assoc_isset($this.styles, $string)) Then
             return __au3Console_array_assoc_get($this.styles, $string);
-        }
+        EndIf
 
+        #Region preg_match_all
+        Local $_matches = StringRegExp($string, "([^=]+)=([^;]+)(;|$)", 4)
+        Local $matches[UBound($_matches)][4]
+        Local $_i = 0
+        Local $_offset = 1
+        While 1
+            $_matches = StringRegExp($string, "([^=]+)=([^;]+)(;|$)", 2, $_offset)
+            If @error <> 0 Then ExitLoop
+            $_offset = @extended
+            $matches[$_i][0] = $_matches[0]
+            $matches[$_i][1] = $_matches[1]
+            $matches[$_i][2] = $_matches[2]
+            $matches[$_i][3] = $_matches[3]
+            $_i += 1
+        WEnd
+        #EndRegion preg_match_all
+
+        If UBound($matches) = 0 Then Return Null
+
+        #cs
         if (!preg_match_all('/([^=]+)=([^;]+)(;|$)/', $string, $matches, \PREG_SET_ORDER)) {
             return null;
         }
+        #ce
 
-        $style = new OutputFormatterStyle();
-        foreach ($matches as $match) {
-            array_shift($match);
-            $match[0] = strtolower($match[0]);
+        $style = OutputFormatterStyle();
+        For $_i = 0 To UBound($matches) Step +1
+            ;Local $match = $matches
+            $matches[$_i][1] = StringLower($matches[$_i][1])
 
-            if ('fg' == $match[0]) {
-                $style->setForeground(strtolower($match[1]));
-            } elseif ('bg' == $match[0]) {
-                $style->setBackground(strtolower($match[1]));
-            } elseif ('href' === $match[0]) {
-                $style->setHref($match[1]);
-            } elseif ('options' === $match[0]) {
-                preg_match_all('([^,;]+)', strtolower($match[1]), $options);
-                $options = array_shift($options);
-                foreach ($options as $option) {
-                    $style->setOption($option);
-                }
-            } else {
-                return null;
-            }
-        }
+            If 'fg' == $matches[$_i][1] Then
+                $style.setForeground(StringLower($matches[$_i][2]))
+            ElseIf 'bg' == $matches[$_i][1] Then
+                $style.setBackground(StringLower($matches[$_i][2]));
+            ElseIf 'href' == $matches[$_i][1] Then
+                $style.setHref($matches[$_i][2])
+            ElseIf 'options' == $matches[$_i][1] Then
+                $options = StringRegExp(StringLower($matches[$_i][2]), '[^,;]+', 3)
+                Local $_j
+                For $_j = 0 To UBound($options) - 1 Step +1
+                    $style.setOption($options[$_j])
+                Next
+            Else
+                Return Null
+            EndIf
+        Next
 
         return $style;
     EndFunc
 
-    ;WARNING: $currentLineLength shoykd be ByRef
+    ;WARNING: $currentLineLength should be ByRef
     Func applyCurrentStyle($text, $current, $width, $currentLineLength)
         If "" = $text Then Return ""
 

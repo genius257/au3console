@@ -2,10 +2,8 @@
 
 #include-once
 
-Global Const $__au3Console_ConsoleCommandEvent_RETURN_CODE_DISABLED = 113
-
-Class ConsoleCommandEvent
-    $_commandShouldRun = True
+Class ConsoleTerminateEvent
+    $exitCode
 
     #Region @class ConsoleEvent
         $command
@@ -14,7 +12,7 @@ Class ConsoleCommandEvent
 
         ;FIXME: extends Symfony\Contracts\EventDispatcher\Event
 
-        Func __construct($command, $input, $output)
+        Func __construct2($command, $input, $output)
             $this.command = $command;
             $this.input = $input;
             $this.output = $output;
@@ -33,15 +31,17 @@ Class ConsoleCommandEvent
         EndFunc
     #EndRegion @class ConsoleEvent
 
-    Func disableCommand()
-        $this._commandShouldRun = False
+    Func __construct($command, $input, $output, $exitCode)
+        $this.__construct2($command, $input, $output);
+
+        $this.setExitCode($exitCode);
     EndFunc
 
-    Func enableCommand()
-        $this._commandShouldRun = True
+    Func setExitCode($exitCode)
+        $this.exitCode = $exitCode;
     EndFunc
 
-    Func commandShouldRun()
-        return $this._commandShouldRun
+    Func getExitCode()
+        return $this.exitCode
     EndFunc
 EndClass

@@ -1,0 +1,74 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include <Array.au3>
+#include "..\helpers.au3"
+#include "..\Color.au3"
+
+Class OutputFormatterStyle
+    $color
+    $foreground
+    $background
+    $options
+    $href
+    $handlesHrefGracefully
+
+    Func __construct($foreground = Null, $background = Null, $options = __au3Console_array())
+        $this.foreground = $foreground ? $foreground : ''
+        $this.background = $background ? $background : ''
+        $this.options = $options
+        $this.color = Color($this.foreground, $this.background, $this.options)
+    EndFunc
+
+    Func setForeground($color = Null)
+        $this.foreground = $color ? $color : ''
+        $this.color = Color($this.foreground, $this.background, $this.options)
+    EndFunc
+
+    Func setBackground($color = Null)
+        $this.background = $color ? $color : ''
+        $this.color = Color($this.foreground, $this.background, $this.options)
+    EndFunc
+
+    Func setHref($url)
+        $this.href = $url
+    EndFunc
+
+    Func setOption($option)
+        Local $options = $this.options
+        Redim $options[UBound($options) + 1]
+        $options[$UBound($options) - 1] = $option
+        $this.options = $options
+        $this.color = Color($this.foreground, $this.background, $this.options);
+    EndFunc
+
+    Func unsetOption($option)
+        Local $options = $this.options
+        $pos = _ArraySearch($options, $option)
+        If Not ($pos = -1) Then
+            _ArrayDelete($options, $pos)
+            $this.options = $options
+        EndIf
+
+        $this.color = Color($this.foreground, $this.background, $this.options)
+    EndFunc
+
+    Func setOptions($options)
+        $this.options = $options
+        $this.color = Color($this.foreground, $this.background, $this.options);
+    EndFunc
+
+    Func apply()
+        if (null = $this.handlesHrefGracefully) Then
+            $this.handlesHrefGracefully = false;'JetBrains-JediTerm' !== getenv('TERMINAL_EMULATOR')
+                ;&& (!getenv('KONSOLE_VERSION') || (int) getenv('KONSOLE_VERSION') > 201100);
+        EndIf
+
+        if ((Not (null = $this.href)) And $this.handlesHrefGracefully) Then
+            $text = StringFormat("\033]8;;%s\033\\%s\033]8;;\033\\", $this.href, $text);"\033]8;;$this.href\033\\$text\033]8;;\033\\";
+        EndIf
+
+        return $this.color.apply($text);
+    EndFunc
+EndClass

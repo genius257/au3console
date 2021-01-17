@@ -9,6 +9,13 @@
 #include "Command/Command.au3"
 #include "Command/HelpCommand.au3"
 #include "Command/ListCommand.au3"
+#include "Output/Output.au3"
+#include "Input/InputArgument.au3"
+#include "Input/InputOption.au3"
+#include "ConsoleEvents.au3"
+#include "Event/ConsoleCommandEvent.au3"
+#include "Event/ConsoleTerminateEvent.au3"
+#include "Exception/CommandNotFoundException.au3"
 
 #cs
 use Symfony\Component\Console\Command\Command;
@@ -138,7 +145,7 @@ Class Application
         Local $name = $this.getCommandName($input)
 
         Local $tmp = ['--help', '-h']
-        If (True === $input.hasParameterOption($tmp, True)) Then
+        If (True = $input.hasParameterOption($tmp, True)) Then
             If Not $name Then;WARNING: this may work different than in php
                 $name = 'help'
                 Local $tmp = [['command_name', $this.defaultCommand]]
@@ -303,7 +310,7 @@ Class Application
         Local $command
         $this.init()
 
-        If Not $this.has($name) Then Return SetError(1, 1, 1); throw new CommandNotFoundException(sprintf('The command "%s" does not exist.', $name));
+        If Not $this.has($name) Then Return SetError(1, 1, CommandNotFoundException(StringFormat('The command "%s" does not exist.', $name)))
 
         ; When the command has a different name than the one used at the command loader level
         If Not __au3Console_array_assoc_isset($this.commands, $name) Then Return SetError(1, 1, CommandNotFoundException(StringFormat('The "%s" command cannot be found because it is registered under multiple names. Make sure you don''t set a different name via constructor or "setName()".', $name)))
@@ -326,8 +333,11 @@ Class Application
         $this.init()
 
         ;ConsoleWrite($name&@CRLF)
+        ;ConsoleWrite(StringFormat('has("%s")\n', $name))
         ;ConsoleWrite(StringFormat('%s || (%s && %s && %s)\n', __au3Console_array_assoc_isset($this.commands, $name), IsObj($this.commandLoader), $this.commandLoader.has($name), IsObj($this.add($this.commandLoader.get($name)))))
+        ;ConsoleWrite(StringFormat('%s || (%s && %s && %s)\n', __au3Console_array_assoc_isset($this.commands, $name), IsObj($this.commandLoader), $this.commandLoader.has($name), '?'))
 
+        ;ConsoleWrite(__au3Console_array_assoc_isset($this.commands, $name)&@CRLF)
         Return __au3Console_array_assoc_isset($this.commands, $name) Or (IsObj($this.commandLoader) And $this.commandLoader.has($name) And IsObj($this.add($this.commandLoader.get($name))))
     EndFunc
 
@@ -379,9 +389,23 @@ Class Application
 
     Func find($name)
         $this.init()
-        #cs
+
         Local $aliases[0][2]
 
+        Local $commands = $this.commands
+        Local $command
+        Local $i
+        For $i = 0 To UBound($commands) - 1 Step +1
+            $command = $commands[$i][1]
+            For $alias In $command.getAliases()
+                If Not $this.has($alias) Then
+                    __au3Console_array_assoc_set($commands, $alias, $command)
+                EndIf
+            Next
+        Next
+        $this.commands = $commands
+
+        #cs
         foreach ($this.commands as $command) {
             foreach ($command.getAliases() as $alias) {
                 if (!$this.has($alias)) {
@@ -395,7 +419,8 @@ Class Application
             Return $this.get($name)
         EndIf
 
-        $allCommands = IsObj($this.commandLoader) ? __Application_ArrayMerge2($this.commandLoader.getNames(), array_keys($this.commands)) : array_keys($this.commands);
+        Local $tmp = $this.commands
+        $allCommands = IsObj($this.commandLoader) ? __Application_ArrayMerge2($this.commandLoader.getNames(), __au3Console_array_assoc_keys($this.commands)) : __au3Console_array_assoc_keys($this.commands);
         ;$expr = preg_replace_callback('{([^:]+|)}', function ($matches) { return preg_quote($matches[1]).'[^:]*'; }, $name);
         $expr = __Application_StringRegExpReplaceCallback($name, '{([^:]+|)}', __Application_Anonymous1600462464)
         Local $commands = __Application_preg_grep('{^'&$expr&'}', $allCommands);
@@ -412,25 +437,28 @@ Class Application
                 $this.findNamespace(StringMid($name, 1, $pos));
             EndIf
 
-            $message = sprintf('Command "%s" is not defined.', $name);
+            $message = StringFormat('Command "%s" is not defined.', $name);
 
-            #cs
-            if ($alternatives = $this.findAlternatives($name, $allCommands)) {
+            Local $alternatives = $this.findAlternatives($name, $allCommands)
+            if (UBound($alternatives) > 0) Then
                 ; remove hidden commands
+                $alternatives = __Application_Anonymous1610741235($this, $alternatives, $name)
+                #cs
                 $alternatives = array_filter($alternatives, function ($name) {
                     return !$this.get($name).isHidden();
                 });
+                #ce
 
-                if (1 == \count($alternatives)) Then
+                if (1 = UBound($alternatives)) Then
                     $message &= StringFormat("\n\nDid you mean this?\n    ")
-                else
+                Else
                     $message &= StringFormat("\n\nDid you mean one of these?\n    ")
-                ElseIf
+                EndIf
                 $message &= _ArrayToString($alternatives, StringFormat("\n    "))
             EndIf
-            #ce
 
-            Return SetError(1, 1, CommandNotFoundException($message, array_values($alternatives)))
+            ;Return SetError(1, 1, CommandNotFoundException($message, array_values($alternatives)))
+            Return SetError(1, 1, CommandNotFoundException($message, __au3Console_array_assoc_values($alternatives)))
         EndIf
 
         #cs
@@ -547,13 +575,13 @@ Class Application
     EndFunc
 
     Func renderThrowable($e, $output)
-        $output.writeln('', OutputInterface::VERBOSITY_QUIET);
+        $output.writeln('', $__au3Console_Output_VERBOSITY_QUIET);
 
         $this.doRenderThrowable($e, $output);
 
         If (Not Null = $this.runningCommand) Then
-            $output.writeln(StringFormat('<info>%s</info>', StringFormat($this.runningCommand.getSynopsis(), $this.getName())), OutputInterface::VERBOSITY_QUIET);
-            $output.writeln('', OutputInterface::VERBOSITY_QUIET);
+            $output.writeln(StringFormat('<info>%s</info>', StringFormat($this.runningCommand.getSynopsis(), $this.getName())), $__au3Console_Output_VERBOSITY_QUIET);
+            $output.writeln('', $__au3Console_Output_VERBOSITY_QUIET);
         EndIf
     EndFunc
 
@@ -562,7 +590,7 @@ Class Application
         #cs
         do {
             $message = trim($e.getMessage());
-            if ('' === $message || OutputInterface::VERBOSITY_VERBOSE <= $output.getVerbosity()) {
+            if ('' === $message || $__au3Console_Output_VERBOSITY_VERBOSE <= $output.getVerbosity()) {
                 $class = get_debug_type($e);
                 $title = sprintf('  [%s%s]  ', $class, 0 !== ($code = $e.getCode()) ? ' ('.$code.')' : '');
                 $len = Helper::strlen($title);
@@ -589,11 +617,11 @@ Class Application
             }
 
             $messages = [];
-            if (!$e instanceof ExceptionInterface || OutputInterface::VERBOSITY_VERBOSE <= $output.getVerbosity()) {
+            if (!$e instanceof ExceptionInterface || $__au3Console_Output_VERBOSITY_VERBOSE <= $output.getVerbosity()) {
                 $messages[] = sprintf('<comment>%s</comment>', OutputFormatter::escape(sprintf('In %s line %s:', basename($e.getFile()) ?: 'n/a', $e.getLine() ?: 'n/a')));
             }
             $messages[] = $emptyLine = sprintf('<error>%s</error>', str_repeat(' ', $len));
-            if ('' === $message || OutputInterface::VERBOSITY_VERBOSE <= $output.getVerbosity()) {
+            if ('' === $message || $__au3Console_Output_VERBOSITY_VERBOSE <= $output.getVerbosity()) {
                 $messages[] = sprintf('<error>%s%s</error>', $title, str_repeat(' ', max(0, $len - Helper::strlen($title))));
             }
             foreach ($lines as $line) {
@@ -602,10 +630,10 @@ Class Application
             $messages[] = $emptyLine;
             $messages[] = '';
 
-            $output.writeln($messages, OutputInterface::VERBOSITY_QUIET);
+            $output.writeln($messages, $__au3Console_Output_VERBOSITY_QUIET);
 
-            if (OutputInterface::VERBOSITY_VERBOSE <= $output.getVerbosity()) {
-                $output.writeln('<comment>Exception trace:</comment>', OutputInterface::VERBOSITY_QUIET);
+            if ($__au3Console_Output_VERBOSITY_VERBOSE <= $output.getVerbosity()) {
+                $output.writeln('<comment>Exception trace:</comment>', $__au3Console_Output_VERBOSITY_QUIET);
 
                 ; exception related properties
                 $trace = $e.getTrace();
@@ -624,52 +652,52 @@ Class Application
                     $file = isset($trace[$i]['file']) ? $trace[$i]['file'] : 'n/a';
                     $line = isset($trace[$i]['line']) ? $trace[$i]['line'] : 'n/a';
 
-                    $output.writeln(sprintf(' %s%s at <info>%s:%s</info>', $class, $function ? $type.$function.'()' : '', $file, $line), OutputInterface::VERBOSITY_QUIET);
+                    $output.writeln(sprintf(' %s%s at <info>%s:%s</info>', $class, $function ? $type.$function.'()' : '', $file, $line), $__au3Console_Output_VERBOSITY_QUIET);
                 }
 
-                $output.writeln('', OutputInterface::VERBOSITY_QUIET);
+                $output.writeln('', $__au3Console_Output_VERBOSITY_QUIET);
             }
         } while ($e = $e.getPrevious());
         #ce
     EndFunc
 
     Func configureIO($input, $output)
-        If (true === $input.hasParameterOption(['--ansi'], true)) Then
+        If (true = $input.hasParameterOption(__au3Console_array('--ansi'), true)) Then
             $output.setDecorated(true);
-        ElseIf (true === $input.hasParameterOption(['--no-ansi'], true)) Then
+        ElseIf (true = $input.hasParameterOption(__au3Console_array('--no-ansi'), true)) Then
             $output.setDecorated(false);
         EndIf
 
-        if (true === $input.hasParameterOption(['--no-interaction', '-n'], true)) Then
+        if (true = $input.hasParameterOption(__au3Console_array('--no-interaction', '-n'), true)) Then
             $input.setInteractive(false);
         EndIf
 
         Local $shellVerbosity = EnvGet('SHELL_VERBOSITY')
         Switch ($shellVerbosity)
             Case -1
-                $output.setVerbosity(OutputInterface::VERBOSITY_QUIET)
+                $output.setVerbosity($__au3Console_Output_VERBOSITY_QUIET)
             Case 1
-                $output.setVerbosity(OutputInterface::VERBOSITY_VERBOSE)
+                $output.setVerbosity($__au3Console_Output_VERBOSITY_VERBOSE)
             Case 2
-                $output.setVerbosity(OutputInterface::VERBOSITY_VERY_VERBOSE)
+                $output.setVerbosity($__au3Console_Output_VERBOSITY_VERY_VERBOSE)
             Case 3
-                $output.setVerbosity(OutputInterface::VERBOSITY_DEBUG)
+                $output.setVerbosity($__au3Console_Output_VERBOSITY_DEBUG)
             Case Else
                 $shellVerbosity = 0
         EndSwitch
 
-        if (true === $input.hasParameterOption(['--quiet', '-q'], true)) Then
-            $output.setVerbosity(OutputInterface::VERBOSITY_QUIET);
+        if (true = $input.hasParameterOption(__au3Console_array('--quiet', '-q'), true)) Then
+            $output.setVerbosity($__au3Console_Output_VERBOSITY_QUIET);
             $shellVerbosity = -1;
         Else
             If ($input.hasParameterOption('-vvv', true) Or $input.hasParameterOption('--verbose=3', true) Or 3 = $input.getParameterOption('--verbose', false, true)) Then
-                $output.setVerbosity(OutputInterface::VERBOSITY_DEBUG);
+                $output.setVerbosity($__au3Console_Output_VERBOSITY_DEBUG);
                 $shellVerbosity = 3;
             ElseIf ($input.hasParameterOption('-vv', true) Or $input.hasParameterOption('--verbose=2', true) Or 2 = $input.getParameterOption('--verbose', false, true)) Then
-                $output.setVerbosity(OutputInterface::VERBOSITY_VERY_VERBOSE);
+                $output.setVerbosity($__au3Console_Output_VERBOSITY_VERY_VERBOSE);
                 $shellVerbosity = 2;
             ElseIf ($input.hasParameterOption('-v', true) Or $input.hasParameterOption('--verbose=1', true) Or $input.hasParameterOption('--verbose', true) Or $input.getParameterOption('--verbose', false, true)) Then
-                $output.setVerbosity(OutputInterface::VERBOSITY_VERBOSE);
+                $output.setVerbosity($__au3Console_Output_VERBOSITY_VERBOSE);
                 $shellVerbosity = 1;
             EndIf
         EndIf
@@ -692,14 +720,17 @@ Class Application
         }
         #ce
 
+        #cs
+        ;instanceof no supported!
         if ($command instanceof SignalableCommandInterface) Then
             For $signal In $command.getSubscribedSignals()
                 $tmp = [$command, 'handleSignal']
                 $this.signalRegistry.register($signal, $tmp);
             Next
         EndIf
+        #ce
 
-        if (null === $this.dispatcher) Then
+        if (null = $this.dispatcher) Then
             return $command.run($input, $output);
         EndIf
 
@@ -711,16 +742,16 @@ Class Application
             ; ignore invalid options/arguments for now, to allow the event listeners to customize the InputDefinition
         ;}
 
-        $event = new ConsoleCommandEvent($command, $input, $output);
+        $event = ConsoleCommandEvent($command, $input, $output);
         $e = null;
 
         ;try {
-            $this.dispatcher.dispatch($event, ConsoleEvents::COMMAND);
+            $this.dispatcher.dispatch($event, $__au3Console_ConsoleEvent_COMMAND);
 
             If ($event.commandShouldRun()) Then
                 $exitCode = $command.run($input, $output);
             Else
-                $exitCode = ConsoleCommandEvent::RETURN_CODE_DISABLED;
+                $exitCode = $__au3Console_ConsoleCommandEvent_RETURN_CODE_DISABLED;
             EndIf
         ;} catch (\Throwable $e) {
         ;    $event = ConsoleErrorEvent($input, $output, $e, $command);
@@ -734,7 +765,7 @@ Class Application
         ;}
 
         $event = ConsoleTerminateEvent($command, $input, $output, $exitCode)
-        $this.dispatcher.dispatch($event, ConsoleEvents::TERMINATE);
+        $this.dispatcher.dispatch($event, $__au3Console_ConsoleEvent_TERMINATE);
 
         If Not (Null = $e) Then
             Return SetError(1, 1, $e)
@@ -749,14 +780,14 @@ Class Application
 
     Func getDefaultInputDefinition()
         Local $tmp = [ _
-            InputArgument('command', InputArgument::REQUIRED, 'The command to execute'), _
-            InputOption('--help', '-h', InputOption::VALUE_NONE, 'Display this help message'), _
-            InputOption('--quiet', '-q', InputOption::VALUE_NONE, 'Do not output any message'), _
-            InputOption('--verbose', '-v|vv|vvv', InputOption::VALUE_NONE, 'Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug'), _
-            InputOption('--version', '-V', InputOption::VALUE_NONE, 'Display this application version'), _
-            InputOption('--ansi', '', InputOption::VALUE_NONE, 'Force ANSI output'), _
-            InputOption('--no-ansi', '', InputOption::VALUE_NONE, 'Disable ANSI output'), _
-            InputOption('--no-interaction', '-n', InputOption::VALUE_NONE, 'Do not ask any interactive question'), _
+            InputArgument('command', $__g_InputArgument_REQUIRED, 'The command to execute'), _
+            InputOption('--help', '-h', $__g_InputOption_VALUE_NONE, 'Display this help message'), _
+            InputOption('--quiet', '-q', $__g_InputOption_VALUE_NONE, 'Do not output any message'), _
+            InputOption('--verbose', '-v|vv|vvv', $__g_InputOption_VALUE_NONE, 'Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug'), _
+            InputOption('--version', '-V', $__g_InputOption_VALUE_NONE, 'Display this application version'), _
+            InputOption('--ansi', '', $__g_InputOption_VALUE_NONE, 'Force ANSI output'), _
+            InputOption('--no-ansi', '', $__g_InputOption_VALUE_NONE, 'Disable ANSI output'), _
+            InputOption('--no-interaction', '-n', $__g_InputOption_VALUE_NONE, 'Do not ask any interactive question') _
         ]
         Return InputDefinition($tmp);
     EndFunc
@@ -792,16 +823,43 @@ Class Application
     EndFunc
 
     Func findAlternatives($name, $collection)
-        MsgBox(0, "", "FIXME")
+        Local $threshold = 1e3;
+        Local $alternatives[0];
+
+        Local $collectionParts = __au3Console_assoc_array()
+        
+        Local $item
+        For $item In $collection
+            __au3Console_array_assoc_set($collectionParts, $item, StringSplit($item, ':', 2))
+        Next
+        ;foreach ($collection as $item) {
+        ;    $collectionParts[$item] = explode(':', $item);
+        ;}
+
+        Local $_tmp = StringSplit($name, ':', 2)
+        Local $i, $j
+        For $i = 0 To UBound($_tmp) - 1 Step +1
+            Local $subname = $_tmp[$i]
+            For $j = 0 To UBound($collectionParts) - 1 Step +1
+                Local $collectionName = $collectionParts[$j][0]
+                Local $parts = $collectionParts[$j][1]
+                Local $exists = __au3Console_array_assoc_isset($alternatives, $collectionName)
+                If (Not (UBound($parts) > $i)) And $exists Then
+                    __au3Console_array_assoc_set($alternatives, $collectionName, __au3Console_array_assoc_get($alternatives, $collectionName) + $threshold)
+                    ContinueLoop
+                ElseIf Not (UBound($parts) > $i) Then
+                    ContinueLoop
+                EndIf
+
+                Local $lev = __au3Console_levenshtein($subname, $parts[$i]);
+                if (($lev <= (StringLen($subname) / 3)) Or (Not ('' = $subname)) And (Not (0 = StringInStr($parts[$i], $subname, 1)))) Then
+                    __au3Console_array_assoc_set($alternatives, $collectionName, $exists ? __au3Console_array_assoc_get($alternatives, $collectionName) + $lev : $lev)
+                ElseIf ($exists) Then
+                    __au3Console_array_assoc_set($alternatives, $collectionName, __au3Console_array_assoc_get($alternatives, $collectionName) + $threshold)
+                EndIf
+            Next
+        Next
         #cs
-        $threshold = 1e3;
-        $alternatives = [];
-
-        $collectionParts = [];
-        foreach ($collection as $item) {
-            $collectionParts[$item] = explode(':', $item);
-        }
-
         foreach (explode(':', $name) as $i => $subname) {
             foreach ($collectionParts as $collectionName => $parts) {
                 $exists = isset($alternatives[$collectionName]);
@@ -820,19 +878,30 @@ Class Application
                 }
             }
         }
+        #ce
 
+        Local $item
+        For $item In $collection
+            Local $lev = __au3Console_levenshtein($name, $item)
+            If (($lev <= (StringLen($name) / 3)) Or (Not (0 = StringInStr($item, $name)))) Then
+                __au3Console_array_assoc_set($alternatives, $item, __au3Console_array_assoc_isset($alternatives, $item) ? __au3Console_array_assoc_get($alternatives, $item) - $lev : $lev)
+            EndIf
+        Next
+        #cs
         foreach ($collection as $item) {
             $lev = levenshtein($name, $item);
             if ($lev <= \strlen($name) / 3 || false !== strpos($item, $name)) {
                 $alternatives[$item] = isset($alternatives[$item]) ? $alternatives[$item] - $lev : $lev;
             }
         }
-
-        $alternatives = array_filter($alternatives, function ($lev) use ($threshold) { return $lev < 2 * $threshold; });
-        ksort($alternatives, \SORT_NATURAL | \SORT_FLAG_CASE);
-
-        return array_keys($alternatives);
         #ce
+
+        $alternatives = __Application_Anonymous1610805697($alternatives, $threshold)
+        ;$alternatives = array_filter($alternatives, function ($lev) use ($threshold) { return $lev < 2 * $threshold; });
+        ;TODO: ksort like below
+        ;ksort($alternatives, \SORT_NATURAL | \SORT_FLAG_CASE);
+
+        return __au3Console_array_assoc_keys($alternatives);
     EndFunc
 
     Func setDefaultCommand($commandName, $isSingleCommand = False)
@@ -1031,4 +1100,34 @@ EndFunc
 Func __Application_Array($iSize = 0)
     Local $a[$iSize]
     Return $a
+EndFunc
+
+Func __Application_Anonymous1610741235($this, $alternatives, $name)
+    Local $iSize = 0
+    Local $i
+    Local $aReturn[UBound($alternatives)]
+    For $i = 0 To UBound($alternatives) Step +1
+        If Not $this.get($name).isHidden() Then
+            $aReturn[$iSize] = $alternatives[$i]
+            $iSize += 1
+        EndIf
+    Next
+
+    Redim $aReturn[$iSIze]
+EndFunc
+
+Func __Application_Anonymous1610805697($alternatives, $threshold)
+    Local $aReturn[UBound($alternatives)][2]
+    Local $iSize = 0
+    Local $i
+    For $i = 0 To UBound($alternatives) - 1 Step +1
+        Local $lev = $alternatives[$i][1]
+        If $lev < 2 * $threshold Then
+            $aReturn[$iSize][0] = $alternatives[$i][0]
+            $aReturn[$iSize][1] = $alternatives[$i][1]
+            $iSize += 1
+        EndIf
+    Next
+    Redim $aReturn[$iSize][2]
+    Return $aReturn
 EndFunc

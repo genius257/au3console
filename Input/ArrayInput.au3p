@@ -4,6 +4,8 @@
 
 #include <Array.au3>
 #include "..\helpers.au3"
+#include "..\Exception\InvalidOptionException.au3"
+#include "..\Exception\InvalidArgumentException.au3"
 
 ;extends Input
 Class ArrayInput
@@ -54,7 +56,7 @@ Class ArrayInput
             Redim $missingArguments[$j]
 
             if (UBound($missingArguments, 1) > 0) Then
-                Return SetError(1, 1, RuntimeException(sprintf('Not enough arguments (missing: "%s").', implode(', ', $missingArguments))))
+                Return SetError(1, 1, RuntimeException(StringFormat('Not enough arguments (missing: "%s").', _ArrayToString($missingArguments, ', '))))
             EndIf
         EndFunc
 
@@ -72,7 +74,7 @@ Class ArrayInput
 
         Func getArgument($name)
             if (Not $this.definition.hasArgument($name)) Then
-                Return SetError(1,1, InvalidArgumentException(sprintf('The "%s" argument does not exist.', $name)))
+                Return SetError(1,1, InvalidArgumentException(StringFormat('The "%s" argument does not exist.', $name)))
             EndIf
 
             return __au3Console_array_assoc_isset($this.arguments, $name) ? __au3Console_array_assoc_get($this.arguments, $name) : $this.definition.getArgument($name).getDefault()
@@ -80,7 +82,7 @@ Class ArrayInput
 
         Func setArgument($name, $value)
             if (Not $this.definition.hasArgument($name)) Then
-                Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" argument does not exist.', $name)))
+                Return SetError(1, 1, InvalidArgumentException(StringFormat('The "%s" argument does not exist.', $name)))
             EndIf
 
             Local $arguments = $this.arguments
@@ -141,8 +143,8 @@ Class ArrayInput
         Local $param, $value, $i, $parameters
         $parameters = $this.parameters
         For $i = 0 To UBound($parameters, 1) - 1 Step +1
-            $param = $parameters[$i][0]
-            $value = $parameters[$i][1]
+            $param = UBound($parameters, 0) = 2 ? $parameters[$i][0] : $i
+            $value = UBound($parameters, 0) = 2 ? $parameters[$i][1] : $parameters[$i]
 
             If ($param And IsString($param) And '-' == StringLeft($param, 1)) Then
                 ContinueLoop
@@ -158,8 +160,8 @@ Class ArrayInput
         Local $k, $v, $i
         Local $parameters = $this.parameters
         For $i = 0 To UBound($parameters, 1) - 1 Step +1
-            $k = $parameters[$i][0]
-            $v = $parameters[$i][1]
+            $k = UBound($parameters, 0) = 2 ? $parameters[$i][0] : $i
+            $v = UBound($parameters, 0) = 2 ? $parameters[$i][1] : $parameters[$i]
 
             If Not IsInt($k) Then
                 $v = $k
@@ -169,7 +171,7 @@ Class ArrayInput
                 Return False
             EndIf
 
-            If __au3Console_array_assoc_in_array($v, $values) Then
+            If (UBound($values, 0) = 2 ? __au3Console_array_assoc_in_array($v, $values) : (_ArraySearch($values, $v, 0, 0, 1, 2) > -1)) Then
                 Return True
             EndIf
         Next
@@ -181,8 +183,8 @@ Class ArrayInput
         Local $k, $v, $i
         Local $parameters = $this.parameters
         For $i = 0 To UBound($parameters, 1) - 1 Step +1
-            $k = $parameters[$i][0]
-            $v = $parameters[$i][1]
+            $k = UBound($parameters, 0) = 2 ? $parameters[$i][0] : $i
+            $v = UBound($parameters, 0) = 2 ? $parameters[$i][1] : $parameters[$i]
 
             If $onlyParams And ('--' == $k Or (IsInt($k) And '--' == $v)) Then
                 Return $default
@@ -203,8 +205,8 @@ Class ArrayInput
         Local $param, $val, $i
         Local $parameters = $this.parameters
         For $i = 0 To UBound($parameters, 1) - 1 Step +1
-            $param = $parameters[$i][0]
-            $val = $parameters[$i][1]
+            $param = UBound($parameters, 0) = 2 ? $parameters[$i][0] : $i
+            $val = UBound($parameters, 0) = 2 ? $parameters[$i][1] : $parameters[$i]
             If $param And IsString($param) And '-' == StringLeft($param, 1) Then
                 If IsArray($val) Then
                     Local $v
@@ -239,17 +241,17 @@ Class ArrayInput
         Local $key, $value, $i
         Local $parameters = $this.parameters
         For $i = 0 To UBound($parameters, 1) - 1 Step +1
-            $key = $parameters[$i][0]
-            $value = $parameters[$i][1]
+            $key = UBound($parameters, 0) = 2 ? $parameters[$i][0] : $i
+            $value = UBound($parameters, 0) = 2 ? $parameters[$i][1] : $parameters[$i]
             If '--' == $key Then
                 Return
             EndIf
             If 1 = StringInStr($key, '--') Then
                 $this.addLongOption(StringMid($key, 3), $value)
             ElseIf 1 = StringInStr($key, '-') Then
-                $this.addLongOption(StringMid($key, 2), $value)
+                $this.addShortOption(StringMid($key, 2), $value)
             Else
-                $this.addLongOption($key, $value)
+                $this.addArgument($key, $value)
             EndIf
         Next
     EndFunc
@@ -286,7 +288,7 @@ Class ArrayInput
 
     Func addArgument($name, $value)
         if (Not $this.definition.hasArgument($name)) Then
-            Return SetError(1, 1, InvalidArgumentException(sprintf('The "%s" argument does not exist.', $name)))
+            Return SetError(1, 1, InvalidArgumentException(StringFormat('The "%s" argument does not exist.', $name)))
         EndIf
 
         Local $arguments = $this.arguments

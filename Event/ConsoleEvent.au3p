@@ -1,0 +1,29 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+Class ConsoleEvent
+    $command
+    $input
+    $output
+
+    ;FIXME: extends Symfony\Contracts\EventDispatcher\Event
+
+    Func __construct($command = null, $input, $output)
+        $this.command = $command;
+        $this.input = $input;
+        $this.output = $output;
+    EndFunc
+
+    Func getCommand()
+        Return $this.command
+    EndFunc
+
+    Func getInput()
+        Return $this.input
+    EndFunc
+
+    Func getOutput()
+        return $this.output
+    EndFunc
+EndClass

@@ -1,0 +1,54 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+#include "..\helpers.au3"
+#include ".\OutputFormatterStyle.au3"
+
+Class OutputFormatterStyleStack
+    $styles
+    $emptyStyle
+
+    Func __construct($emptyStyle = null)
+        $this.emptyStyle = $emptyStyle ? $emptyStyle : OutputFormatterStyle();
+        $this.reset();
+    EndFunc
+
+    Func reset()
+        $this.styles = __au3Console_array()
+    EndFunc
+
+    Func push($style)
+        Local $styles = $this.styles
+        Redim $styles[UBound($styles) + 1]
+        $styles[UBound($styles) - 1] = $style
+        $this.styles = $styles
+    EndFunc
+
+    Func pop($style = Null)
+        if (UBound($this.styles) = 0) Then
+            return $this.emptyStyle;
+        EndIf
+
+        if (Null = $style) Then
+            Local $styles = $this.styles
+            Local $_style = $styles[UBound($styles) - 1]
+            Redim $styles[UBound($styles) - 1]
+            $his.styles = $styles
+            return $_style
+        EndIf
+
+        Local $i
+        Local $styles = $this.styles
+        For $i = UBound($styles) - 1 To 0 Step -1
+            If $style.apply('') = $stackedStyle.apply('') Then
+                Redim $styles[$i + 1]
+                $this.styles = $styles
+
+                Return $stackedStyle
+            EndIf
+        Next
+
+        Return SetError(1, 1, InvalidArgumentException('Incorrectly nested style tag found.'))
+    EndFunc
+EndClass

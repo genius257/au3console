@@ -1,0 +1,9 @@
+#AutoIt3Wrapper_Run_AU3Check=N
+
+#include-once
+
+Class InvalidOptionException
+    Func __construct($message = "", $code = 0, $previous = Null)
+        ConsoleWriteError($message&@CRLF)
+    EndFunc
+EndClass

@@ -3,6 +3,7 @@
 #include-once
 
 #include "..\helpers.au3"
+#include "..\Exception\LogicException.au3"
 
 Class InputDefinition
     $__class = 'InputDefinition'
@@ -75,7 +76,7 @@ Class InputDefinition
     EndFunc
 
     Func hasArgument($name)
-        Return IsNumber($name) ? UBound($this.arguments, 1) > $name : __au3Console_array_assoc_isset($this.arguments, $name)
+        Return IsNumber($name) ? UBound($this.arguments, 1) >= $name : __au3Console_array_assoc_isset($this.arguments, $name)
     EndFunc
 
     Func getArguments()
@@ -117,7 +118,7 @@ Class InputDefinition
         ;if (isset($this.options[$option->getName()]) && !$option->equals($this->options[$option->getName()])) Then Return SetError(1, 1, LogicException(sprintf('An option named "%s" already exists.', $option->getName())))
 
         if ($option.getShortcut()) Then
-            For $shortcut In StringSplit($option.getShortcut(), '|')
+            For $shortcut In StringSplit($option.getShortcut(), '|', 2)
                 If __au3Console_array_assoc_isset($this.shortcuts, $shortcut) And Not $option.equals(__au3Console_array_assoc_get($this.options, __au3Console_array_assoc_get($this.shortcuts, $shortcut))) Then Return SetError(1, 1, LogicException(StringFormat('An option with shortcut "%s" already exists.', $shortcut)))
             Next
         EndIf
@@ -125,11 +126,13 @@ Class InputDefinition
         Local $options = $this.options
         __au3Console_array_assoc_set($options, $option.getName(), $option)
         $this.options = $options
+        Local $shortcuts = $this.shortcuts
         if ($option.getShortcut()) Then
             For $shortcut In StringSplit($option.getShortcut(), '|')
-                __au3Console_array_assoc_set($this.shortcuts, $shortcut, $option->getName())
+                __au3Console_array_assoc_set($shortcuts, $shortcut, $option.getName())
             Next
         EndIf
+        $this.shortcuts = $shortcuts
     EndFunc
 
     Func getOption($name)

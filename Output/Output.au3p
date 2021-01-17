@@ -2,6 +2,7 @@
 
 #include-once
 
+#include "../helpers.au3"
 #include "..\Formatter\OutputFormatter.au3"
 
 Global Const $__au3Console_Output_VERBOSITY_QUIET = 16
@@ -71,7 +72,7 @@ Class Output
 
     Func write($messages, $newline = false, $options = $__au3Console_Output_OUTPUT_NORMAL)
         if (Not IsArray($messages)) Then
-            $messages = [$messages];
+            $messages = __au3Console_array($messages);
         EndIf
 
         $types = BitOR($__au3Console_Output_OUTPUT_NORMAL, $__au3Console_Output_OUTPUT_RAW, $__au3Console_Output_OUTPUT_PLAIN)
@@ -95,7 +96,7 @@ Class Output
                         ;$message = strip_tags($this.formatter.format($message))
                 EndSwitch
 
-                this.dowrite($message, $newline)
+                $this.doWrite($message, $newline)
             Next
     EndFunc
 EndClass
