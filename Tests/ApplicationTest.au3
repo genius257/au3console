@@ -64,44 +64,41 @@
 #testRegister
 	$application = Application()
 	$command = $application.register('foo')
-	;assertEquals('foo', $command.getName(), '->register() registers a new command')
-	assertEquals('Command', $command.getName(), '->register() registers a new command')
+	assertEquals('foo', $command.getName(), '->register() registers a new command')
+	;assertEquals('Command', $command.getName(), '->register() registers a new command')
 #testRegisterAmbiguous
 	$code = Anonymous1601319278
 	Func Anonymous1601319278($input, $output)
 		$output.writeln('It works!')
 	EndFunc
 
-	Global $tmp = ['test']
-
 	$application = Application()
 	$application.setAutoExit(False)
 	$application _
 		.register('test-foo') _
-		.setAliases($tmp) _
+		.setAliases(__au3Console_array('test')) _
 		.setCode($code)
 
 	$application _
 		.register('test-bar') _
 		.setCode($code)
 
-	Global $tmp = ['test']
 	$tester = ApplicationTester($application)
-	$tester.run($tmp)
-	assertStringContainsString('it works!', $tester.getDisplay(True))
+	$tester.run(__au3Console_array('test'))
+	;assertStringContainsString('it works!', $tester.getDisplay(True))
+	assertTrue(StringInStr($tester.getDisplay(True), 'it works!') > 0)
 #testAdd
 	$application = Application()
 	$foo = FooCommand()
 	$application.add($foo)
 	$commands = $application.all()
-	$this.assertEquals($foo, __au3Console_array_assoc_get($commands, 'foo:bar'), '->add() registers a command')
+	;assertEquals($foo, __au3Console_array_assoc_get($commands, 'foo:bar'), '->add() registers a command')
+	assertEquals(Int(Ptr($foo)), Int(Ptr(__au3Console_array_assoc_get($commands, 'foo:bar'))), '->add() registers a command')
 
 	$application = Application()
 	Global $foo = FooCommand()
 	Global $foo1 = Foo1Command()
-	Global $tmp = [$foo, $foo1]
-	$application.addCommands($tmp)
-	$commands = $application->all()
-	Global $tmp1 = [$foo, $foo1]
-	Global $tmp2 = [__au3Console_array_assoc_get($commands, 'foo:bar'), __au3Console_array_assoc_get($commands, 'foo:bar1')]
-	$this->assertEquals($tmp1, $tmp2, '->addCommands() registers an array of commands')
+	$application.addCommands(__au3Console_array($foo, $foo1))
+	$commands = $application.all()
+	;assertEquals(__au3Console_array($foo, $foo1), __au3Console_array(__au3Console_array_assoc_get($commands, 'foo:bar'), __au3Console_array_assoc_get($commands, 'foo:bar1')), '->addCommands() registers an array of commands')
+	assertEquals(__au3Console_array(Int(Ptr($foo)), Int(Ptr($foo1))), __au3Console_array(Int(Ptr(__au3Console_array_assoc_get($commands, 'foo:bar'))), Int(Ptr(__au3Console_array_assoc_get($commands, 'foo:bar1')))), '->addCommands() registers an array of commands')
