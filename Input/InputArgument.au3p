@@ -47,7 +47,7 @@ Class InputArgument
         If $this.isArray() Then
             If Null = $default Then
                 $default = array()
-            ElseIf Not isArray($default)
+            ElseIf Not isArray($default) Then
                 Return SetError(1, 1, LogicException('A default value for an array argument must be an array.'))
             EndIf
         EndIf

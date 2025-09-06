@@ -799,10 +799,10 @@ Class Application
 
     Func getDefaultHelperSet()
         Local $tmp = [ _
-            new FormatterHelper(), _
-            new DebugFormatterHelper(), _
-            new ProcessHelper(), _
-            new QuestionHelper(), _
+            FormatterHelper(), _
+            DebugFormatterHelper(), _
+            ProcessHelper(), _
+            QuestionHelper() _
         ]
         return HelperSet($tmp)
     EndFunc
