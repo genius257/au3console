@@ -89,9 +89,9 @@ Class ApplicationTester
                     $this.output.setVerbosity($options['verbosity']);
                 EndIf
             Else
-                $this.output = ConsoleOutput(
-                    __au3Console_array_assoc_isset($options, 'verbosity') ? __au3Console_array_assoc_get($options, 'verbosity') : ConsoleOutput::VERBOSITY_NORMAL,
-                    __au3Console_array_assoc_isset($options, 'decorated') ? __au3Console_array_assoc_get($options, 'decorated') : null
+                $this.output = ConsoleOutput( _
+                    __au3Console_array_assoc_isset($options, 'verbosity') ? __au3Console_array_assoc_get($options, 'verbosity') : $__au3Console_Output_VERBOSITY_NORMAL, _
+                    __au3Console_array_assoc_isset($options, 'decorated') ? __au3Console_array_assoc_get($options, 'decorated') : null _
                 )
 
                 $errorOutput = StreamOutput(FileOpen(_TempFile()))

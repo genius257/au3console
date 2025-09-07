@@ -19,7 +19,7 @@ Class DescriptorHelper
     Func describe($output, $object, $options = [])
         Local $tmp = [ _
             ['raw_text', false], _
-            ['format', 'txt'], _
+            ['format', 'txt'] _
         ]
         $options = __Application_ArrayMerge($tmp, $options);
 

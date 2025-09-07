@@ -100,10 +100,10 @@ Class HelpCommand
             $this.command = $this.getApplication().find($input.getArgument('command_name'));
         EndIf
 
-        $helper = new DescriptorHelper();
+        $helper = DescriptorHelper();
         Local $tmp = [ _
-            'format' => $input.getOption('format'), _
-            'raw_text' => $input.getOption('raw'), _
+            ['format', $input.getOption('format')], _
+            ['raw_text', $input.getOption('raw')] _
         ]
         $helper.describe($output, $this.command, $tmp);
 
@@ -237,7 +237,7 @@ Class HelpCommand
     EndFunc
 
     Func addArgument($name, $mode = Null, $description = '', $default = null)
-        $this.definition.addArgument(new InputArgument($name, $mode, $description, $default));
+        $this.definition.addArgument(InputArgument($name, $mode, $description, $default));
         if (Not Null = $this.fullDefinition) Then
             $this.fullDefinition.addArgument(InputArgument($name, $mode, $description, $default));
         EndIf
@@ -246,9 +246,9 @@ Class HelpCommand
     EndFunc
 
     Func addOption($name, $shortcut = Null, $mode = Null, $description = '', $default = Null)
-        $this.definition.addOption(new InputOption($name, $shortcut, $mode, $description, $default));
+        $this.definition.addOption(InputOption($name, $shortcut, $mode, $description, $default));
         if (Not Null = $this.fullDefinition) Then
-            $this.fullDefinition.addOption(new InputOption($name, $shortcut, $mode, $description, $default));
+            $this.fullDefinition.addOption(InputOption($name, $shortcut, $mode, $description, $default));
         EndIf
 
         return $this;
@@ -308,11 +308,11 @@ Class HelpCommand
 
         Local $placeholders = [ _
             '%command.name%', _
-            '%command.full_name%', _
+            '%command.full_name%' _
         ];
         Local $replacements = [ _
             $name, _
-            $isSingleCommand ? $_SERVER['PHP_SELF'] : $_SERVER['PHP_SELF']&' '&$name, _
+            $isSingleCommand ? $_SERVER['PHP_SELF'] : $_SERVER['PHP_SELF']&' '&$name _
         ];
 
         return str_replace($placeholders, $replacements, $this.getHelp() ? $this.getHelp() : $this.getDescription());
@@ -349,7 +349,10 @@ Class HelpCommand
             $usage = stringfor('%s %s', $this.name, $usage);
         EndIf
 
-        $this.usages[] = $usage;
+        $usages = $this.usages
+        ReDim $usages[Ubound($usages) + 1]
+        $usages[Ubound($usages) - 1] = $usage
+        $this.usages = $usage;
 
         return $this;
     EndFunc
@@ -359,7 +362,7 @@ Class HelpCommand
     EndFunc
 
     Func getHelper($name)
-        if (null === $this.helperSet) Then
+        if (null == $this.helperSet) Then
             Return SetError(1, 1, LogicException(StringFormat('Cannot retrieve helper "%s" because there is no HelperSet defined. Did you forget to add your command to the application or to set the application on the command using the setApplication() method? You can also set the HelperSet directly using the setHelperSet() method.', $name)))
         EndIf
 

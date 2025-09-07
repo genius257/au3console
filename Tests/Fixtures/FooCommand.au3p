@@ -330,6 +330,7 @@ Class FooCommand
         $usages = $this.usages
         ReDim $usages[Ubound($usages) + 1]
         $usages[Ubound($usages) - 1] = $usage
+        $this.usages = $usage;
 
         return $this;
     EndFunc

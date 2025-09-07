@@ -20,7 +20,7 @@ Class OutputFormatter
     EndFunc
 
     Func escapeTrailingBackslash($text)
-        if ('\' === StringRight($text, 1)) Then
+        if ('\' == StringRight($text, 1)) Then
             Local $len = StringLen($text);
             $text = StringTrimRight($text, '\')
             $text = StringReplace(Chr(0), '', $text);
@@ -164,7 +164,7 @@ Class OutputFormatter
             If (Not $open And Not $tag) Then
                 ;; </>
                 $this.styleStack.pop();
-            ElseIf (null === $style = $this.createStyleFromString($tag)) Then
+            ElseIf (null == $style = $this.createStyleFromString($tag)) Then
                 $output &= $this.applyCurrentStyle($text, $output, $width, $currentLineLength);
             ElseIf ($open) Then
                 $this.styleStack.push($style)

@@ -130,7 +130,7 @@ Class StreamOutput
             return false;
         EndIf
 
-        if ('Hyper' === EnvGet('TERM_PROGRAM')) Then
+        if ('Hyper' == EnvGet('TERM_PROGRAM')) Then
             return true;
         EndIf
 
